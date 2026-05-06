@@ -1,40 +1,59 @@
-// ─── Sage & Salt — WhatsApp Bot (Vercel Serverless Function) ─────────────────
-// Deployed at: https://sage-and-salt.vercel.app/api/whatsapp
+// ─── Sage & Salt — WhatsApp Webhook (Vercel Serverless) ──────────────────────
+// No external twilio library needed — returns raw TwiML XML directly
 // ─────────────────────────────────────────────────────────────────────────────
 
-const { MessagingResponse } = require('twilio').twiml;
+const { parse } = require('querystring');
 
-const GREETINGS = ['hi', 'hello', 'start', 'hey', 'salam', 'assalam', 'السلام'];
+const GREETINGS = ['hi', 'hello', 'start', 'hey', 'salam', 'السلام'];
 
-module.exports = (req, res) => {
+const WELCOME_MSG =
+  `🌿 *Welcome to Sage & Salt Restaurant!*\n\n` +
+  `Experience artisan dining with premium taste and fast delivery. ` +
+  `From handcrafted burgers to wood-fired pizzas — every dish is made fresh with love.\n\n` +
+  `📍 *Place your order here:*\n` +
+  `https://sage-and-salt.vercel.app/\n\n` +
+  `We Are Excited To Serve You ❤️`;
+
+const FALLBACK_MSG =
+  `Please type *"Hi"* to start ordering 🍔\n\n` +
+  `Or visit: https://sage-and-salt.vercel.app/`;
+
+// Build TwiML response string (no library needed)
+function twiml(message) {
+  // Escape XML special chars
+  const safe = message
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  return `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${safe}</Message></Response>`;
+}
+
+module.exports = async (req, res) => {
+  // Health check for browser / GET requests
   if (req.method !== 'POST') {
-    return res.status(200).json({ status: 'Sage & Salt WhatsApp Bot is live!' });
+    return res.status(200).json({ status: '✅ Sage & Salt WhatsApp Bot is live!' });
   }
 
-  const incomingMsg = (req.body?.Body || '').trim().toLowerCase();
-  const from        = req.body?.From || 'unknown';
+  try {
+    // Manually read and parse URL-encoded body (what Twilio sends)
+    let rawBody = '';
+    for await (const chunk of req) rawBody += chunk;
+    const params = parse(rawBody);
 
-  console.log(`[WhatsApp] From: ${from} → "${incomingMsg}"`);
+    const incomingMsg = (params.Body || '').toString().trim().toLowerCase();
+    const from        = params.From || 'unknown';
 
-  const twiml      = new MessagingResponse();
-  const isGreeting = GREETINGS.some(g => incomingMsg.includes(g));
+    console.log(`[Bot] From: ${from} → "${incomingMsg}"`);
 
-  if (isGreeting) {
-    twiml.message(
-      `🌿 *Welcome to Sage & Salt Restaurant!*\n\n` +
-      `Experience artisan dining with premium taste and fast delivery. ` +
-      `From handcrafted burgers to wood-fired pizzas — every dish is made fresh with love.\n\n` +
-      `📍 *Place your order here:*\n` +
-      `https://sage-and-salt.vercel.app/\n\n` +
-      `We Are Excited To Serve You ❤️`
-    );
-  } else {
-    twiml.message(
-      `Please type *"Hi"* to start ordering 🍔\n\n` +
-      `Or visit us directly:\nhttps://sage-and-salt.vercel.app/`
-    );
+    const isGreeting = GREETINGS.some(g => incomingMsg.includes(g));
+    const reply      = isGreeting ? WELCOME_MSG : FALLBACK_MSG;
+
+    res.setHeader('Content-Type', 'text/xml');
+    return res.status(200).send(twiml(reply));
+
+  } catch (err) {
+    console.error('[Bot] Error:', err);
+    res.setHeader('Content-Type', 'text/xml');
+    return res.status(200).send(twiml('Sorry, something went wrong. Please try again.'));
   }
-
-  res.setHeader('Content-Type', 'text/xml');
-  res.status(200).send(twiml.toString());
 };
