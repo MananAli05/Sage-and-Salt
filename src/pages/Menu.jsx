@@ -4,12 +4,107 @@ import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 // ─── Waiter Call Helper ────────────────────────────────────────────────────────
-async function callWaiter(tableNo) {
+async function sendWaiterRequest(tableNo, request) {
   await addDoc(collection(db, 'waiter_calls'), {
     tableNo,
+    request,   // e.g. "Water Bottle"
     status: 'pending',
     createdAt: serverTimestamp(),
   });
+}
+
+// ─── SVG Icons ─────────────────────────────────────────────────────────────
+const TrashIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+    fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+    <path d="M10 11v6M14 11v6" />
+    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+  </svg>
+);
+
+const BellIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+    fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+  </svg>
+);
+
+// ─── Waiter Request Modal ─────────────────────────────────────────────────────
+const WAITER_OPTIONS = [
+  { id: 'water',   label: 'Water Bottle',    icon: '💧' },
+  { id: 'tissue',  label: 'Tissues / Napkins', icon: '🧻' },
+  { id: 'cutlery', label: 'Extra Cutlery',   icon: '🍴' },
+  { id: 'sauce',   label: 'Extra Sauce',     icon: '🥫' },
+  { id: 'bill',    label: 'Request Bill',    icon: '🧾' },
+];
+
+function WaiterModal({ tableNo, onClose }) {
+  const [sent, setSent] = useState(null);   // which option was sent
+  const [loading, setLoading] = useState(false);
+
+  const handleRequest = async (option) => {
+    if (loading || sent) return;
+    setLoading(true);
+    try {
+      await sendWaiterRequest(tableNo, option.label);
+      setSent(option);
+    } catch(e) { console.error(e); }
+    setLoading(false);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="order-modal" style={{ maxWidth: '400px', padding: '0' }}>
+        {/* Header */}
+        <div className="modal-header" style={{ padding: '1.5rem 1.5rem 1rem' }}>
+          <div>
+            <h2 className="modal-title">Need Assistance?</h2>
+            <p className="modal-subtitle">Select what you need and a waiter will come to your table.</p>
+          </div>
+          <button className="close-btn" onClick={onClose} aria-label="Close">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Options */}
+        <div style={{ padding: '0 1.5rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+          {!sent ? WAITER_OPTIONS.map(opt => (
+            <button
+              key={opt.id}
+              onClick={() => handleRequest(opt)}
+              disabled={loading}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '1rem',
+                padding: '0.9rem 1.25rem', borderRadius: '12px',
+                border: '1px solid var(--border)', background: 'var(--surface)',
+                color: 'var(--text)', cursor: 'pointer', textAlign: 'left',
+                fontWeight: 600, fontSize: '0.95rem', transition: 'all 0.2s',
+                opacity: loading ? 0.6 : 1
+              }}
+              onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'rgba(232,70,30,0.06)'; }}
+              onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--surface)'; }}
+            >
+              <span style={{ fontSize: '1.5rem', lineHeight: 1 }}>{opt.icon}</span>
+              <span>{opt.label}</span>
+            </button>
+          )) : (
+            <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+              <div style={{ fontSize: '3rem', marginBottom: '0.75rem' }}>✓</div>
+              <div style={{ fontWeight: 800, fontSize: '1.1rem', marginBottom: '0.5rem', color: 'var(--text)' }}>Request Sent!</div>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>A waiter has been notified for: <strong>{sent.label}</strong></p>
+              <button className="submit-btn" onClick={onClose} style={{ marginTop: '1.5rem' }}>Done</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── Menu Data ────────────────────────────────────────────────────────────────
@@ -107,7 +202,7 @@ function CartDrawer({ cart, onClose, onInc, onDec, onRemove, onCheckout }) {
                   <button className="qty-btn" onClick={() => onInc(item.id)}>+</button>
                 </div>
               </div>
-              <button className="remove-btn" onClick={() => onRemove(item.id)} aria-label="Remove item">🗑</button>
+              <button className="remove-btn" onClick={() => onRemove(item.id)} aria-label="Remove item"><TrashIcon /></button>
             </div>
           ))}
         </div>
@@ -234,12 +329,12 @@ function OrderModal({ cart, onClose, onOrderPlaced }) {
           <div className="form-row">
             <div className="form-group">
               <label className="form-label" htmlFor="inp-name">Full Name</label>
-              <input id="inp-name" className="form-input" placeholder="Ahmed Khan" value={form.name} onChange={set('name')} />
+              <input id="inp-name" className="form-input" placeholder="Abdul Manan" value={form.name} onChange={set('name')} />
               {errors.name && <span style={{color:'#e84545', fontSize:'0.78rem'}}>{errors.name}</span>}
             </div>
             <div className="form-group">
               <label className="form-label" htmlFor="inp-phone">Phone Number</label>
-              <input id="inp-phone" className="form-input" placeholder="03001234567" value={form.phone} onChange={set('phone')} maxLength={11} />
+              <input id="inp-phone" className="form-input" placeholder="0303xxxxxxx" value={form.phone} onChange={set('phone')} maxLength={11} />
               {errors.phone && <span style={{color:'#e84545', fontSize:'0.78rem'}}>{errors.phone}</span>}
             </div>
           </div>
@@ -304,6 +399,7 @@ function SuccessModal({ order, onClose }) {
         <div className="success-screen">
           <div className="success-icon"></div>
           <h2 className="success-title">Order Confirmed!</h2>
+          <p style={{ fontSize:'0.75rem', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.08em', color:'var(--text-muted)', marginTop:'0.35rem' }}>Order ID</p>
           <p className="order-id">{order.orderId}</p>
 
           {/* ETA Banner */}
@@ -340,7 +436,7 @@ function SuccessModal({ order, onClose }) {
           </div>
 
           <p className="success-msg" style={{marginTop:'0.75rem', fontSize:'0.82rem'}}>
-            Thank you, <strong>{order.name}</strong>! Sit back and relax — your food is being prepared.
+            Thank you, <strong>{order.name}</strong>! Sit Back And Relax Your Food Is Being Prepared.
           </p>
           <button className="submit-btn" onClick={onClose} style={{marginTop:'1.25rem'}}>
             Back to Menu
@@ -362,18 +458,12 @@ export default function App() {
   const [heroBgLoaded, setHeroBgLoaded] = useState(false);
   const [waiterCalling, setWaiterCalling] = useState(false);
   const [waiterCalled, setWaiterCalled] = useState(false);
+  const [waiterModalOpen, setWaiterModalOpen] = useState(false);
 
   const tableNo = new URLSearchParams(window.location.search).get('table') || null;
 
-  const handleCallWaiter = async () => {
-    if (waiterCalling || waiterCalled) return;
-    setWaiterCalling(true);
-    try {
-      await callWaiter(tableNo || 'Walk-in');
-      setWaiterCalled(true);
-      setTimeout(() => setWaiterCalled(false), 30000); // reset after 30s
-    } catch(e) { console.error(e); }
-    setWaiterCalling(false);
+  const handleCallWaiter = () => {
+    setWaiterModalOpen(true);
   };
 
   // preload hero
@@ -422,22 +512,20 @@ export default function App() {
           {tableNo && (
             <button
               onClick={handleCallWaiter}
-              disabled={waiterCalling || waiterCalled}
               style={{
                 display:'flex', alignItems:'center', gap:'0.5rem',
                 padding:'0.55rem 1rem', borderRadius:'50px', fontWeight:700,
-                fontSize:'0.85rem', border:'none', cursor: waiterCalled ? 'default' : 'pointer',
-                background: waiterCalled ? '#2ecc71' : 'var(--accent)',
-                color:'#fff', transition:'all 0.3s ease',
-                boxShadow: waiterCalled ? '0 4px 15px rgba(46,204,113,0.4)' : '0 4px 15px rgba(232,69,69,0.35)'
+                fontSize:'0.85rem', border:'none', cursor:'pointer',
+                background:'var(--accent)', color:'#fff', transition:'all 0.3s ease',
+                boxShadow:'0 4px 15px rgba(232,69,69,0.35)'
               }}
               aria-label="Call waiter"
             >
-              🔔 {waiterCalling ? 'Calling…' : waiterCalled ? 'Waiter Coming!' : 'Call Waiter'}
+              <BellIcon /> Call Waiter
             </button>
           )}
           <button className="cart-btn" id="cart-toggle-btn" onClick={() => setCartOpen(true)} aria-label={`Open cart, ${totalItems} items`}>
-            🛒 Cart
+             Cart
             {totalItems > 0 && <span className="cart-badge">{totalItems}</span>}
           </button>
         </div>
@@ -561,6 +649,14 @@ export default function App() {
         <SuccessModal
           order={successOrder}
           onClose={() => setSuccessOrder(null)}
+        />
+      )}
+
+      {/* Waiter Request Modal */}
+      {waiterModalOpen && (
+        <WaiterModal
+          tableNo={tableNo || 'Walk-in'}
+          onClose={() => setWaiterModalOpen(false)}
         />
       )}
     </>
