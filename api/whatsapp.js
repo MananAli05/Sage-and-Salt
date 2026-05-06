@@ -1,8 +1,5 @@
-// ─── Sage & Salt — WhatsApp Webhook (Vercel Serverless) ──────────────────────
-// No external twilio library needed — returns raw TwiML XML directly
-// ─────────────────────────────────────────────────────────────────────────────
-
-const { parse } = require('querystring');
+// Sage & Salt WhatsApp Webhook (Vercel Serverless)
+// Uses raw TwiML XML response with no external SDK dependency.
 
 const GREETINGS = ['hi', 'hello', 'start', 'hey', 'salam', 'السلام'];
 
@@ -27,6 +24,15 @@ function isGreetingMessage(text) {
   });
 }
 
+function parseFormBody(rawBody) {
+  const params = Object.create(null);
+  const searchParams = new URLSearchParams(rawBody || '');
+  for (const [key, value] of searchParams.entries()) {
+    params[key] = value;
+  }
+  return params;
+}
+
 // Build TwiML response string (no library needed)
 function twiml(message) {
   // Escape XML special chars
@@ -37,7 +43,7 @@ function twiml(message) {
   return `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${safe}</Message></Response>`;
 }
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   // Health check for browser / GET requests
   if (req.method !== 'POST') {
     return res.status(200).json({ status: '✅ Sage & Salt WhatsApp Bot is live!' });
@@ -51,11 +57,11 @@ module.exports = async (req, res) => {
     if (req.body && typeof req.body === 'object') {
       params = req.body;
     } else if (typeof req.body === 'string') {
-      params = parse(req.body);
+      params = parseFormBody(req.body);
     } else {
       let rawBody = '';
       for await (const chunk of req) rawBody += chunk;
-      params = parse(rawBody);
+      params = parseFormBody(rawBody);
     }
 
     const incomingMsg = (params.Body || '').toString().trim().toLowerCase();
@@ -74,4 +80,4 @@ module.exports = async (req, res) => {
     res.setHeader('Content-Type', 'text/xml');
     return res.status(200).send(twiml('Sorry, something went wrong. Please try again.'));
   }
-};
+}
