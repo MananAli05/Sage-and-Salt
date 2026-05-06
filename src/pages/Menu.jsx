@@ -34,11 +34,11 @@ const BellIcon = () => (
 
 // ─── Waiter Request Modal ─────────────────────────────────────────────────────
 const WAITER_OPTIONS = [
-  { id: 'water',   label: 'Water Bottle',    icon: '💧' },
-  { id: 'tissue',  label: 'Tissues / Napkins', icon: '🧻' },
-  { id: 'cutlery', label: 'Extra Cutlery',   icon: '🍴' },
-  { id: 'sauce',   label: 'Extra Sauce',     icon: '🥫' },
-  { id: 'bill',    label: 'Request Bill',    icon: '🧾' },
+  { id: 'water',   label: 'Water Bottle',     },
+  { id: 'tissue',  label: 'Tissues / Napkins',  },
+  { id: 'cutlery', label: 'Extra Cutlery',    },
+  { id: 'sauce',   label: 'Extra Sauce',      },
+  { id: 'bill',    label: 'Request Bill',     },
 ];
 
 function WaiterModal({ tableNo, onClose }) {
@@ -95,7 +95,6 @@ function WaiterModal({ tableNo, onClose }) {
             </button>
           )) : (
             <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '0.75rem' }}>✓</div>
               <div style={{ fontWeight: 800, fontSize: '1.1rem', marginBottom: '0.5rem', color: 'var(--text)' }}>Request Sent!</div>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>A waiter has been notified for: <strong>{sent.label}</strong></p>
               <button className="submit-btn" onClick={onClose} style={{ marginTop: '1.5rem' }}>Done</button>
@@ -409,7 +408,7 @@ function SuccessModal({ order, onClose }) {
             display:'flex', alignItems:'center', justifyContent:'space-between'
           }}>
             <span style={{fontSize:'0.9rem', fontWeight:600}}>Estimated Time</span>
-            <span style={{fontSize:'1.4rem', fontWeight:800}}>~{minsLeft} mins</span>
+            <span style={{fontSize:'1.4rem', fontWeight:800}}>{minsLeft} mins</span>
           </div>
 
           {/* Ordered Items */}
@@ -521,7 +520,7 @@ export default function App() {
               }}
               aria-label="Call waiter"
             >
-              <BellIcon /> Call Waiter
+              Call Waiter
             </button>
           )}
           <button className="cart-btn" id="cart-toggle-btn" onClick={() => setCartOpen(true)} aria-label={`Open cart, ${totalItems} items`}>
