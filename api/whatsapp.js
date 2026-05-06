@@ -18,6 +18,15 @@ const FALLBACK_MSG =
   `Please type *"Hi"* to start ordering 🍔\n\n` +
   `Or visit: https://sage-and-salt.vercel.app/`;
 
+function isGreetingMessage(text) {
+  if (!text) return false;
+  const normalized = text.trim().toLowerCase();
+  return GREETINGS.some((greeting) => {
+    const pattern = new RegExp(`(^|\\s)${greeting}(\\s|$)`, 'i');
+    return pattern.test(normalized);
+  });
+}
+
 // Build TwiML response string (no library needed)
 function twiml(message) {
   // Escape XML special chars
@@ -35,17 +44,26 @@ module.exports = async (req, res) => {
   }
 
   try {
-    // Manually read and parse URL-encoded body (what Twilio sends)
-    let rawBody = '';
-    for await (const chunk of req) rawBody += chunk;
-    const params = parse(rawBody);
+    // Twilio sends x-www-form-urlencoded data. Depending on runtime,
+    // body may already be parsed or still available as a raw stream.
+    let params = {};
+
+    if (req.body && typeof req.body === 'object') {
+      params = req.body;
+    } else if (typeof req.body === 'string') {
+      params = parse(req.body);
+    } else {
+      let rawBody = '';
+      for await (const chunk of req) rawBody += chunk;
+      params = parse(rawBody);
+    }
 
     const incomingMsg = (params.Body || '').toString().trim().toLowerCase();
     const from        = params.From || 'unknown';
 
     console.log(`[Bot] From: ${from} → "${incomingMsg}"`);
 
-    const isGreeting = GREETINGS.some(g => incomingMsg.includes(g));
+    const isGreeting = isGreetingMessage(incomingMsg);
     const reply      = isGreeting ? WELCOME_MSG : FALLBACK_MSG;
 
     res.setHeader('Content-Type', 'text/xml');
