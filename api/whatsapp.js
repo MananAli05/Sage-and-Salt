@@ -4,10 +4,10 @@
 const GREETINGS = ['hi', 'hello', 'start', 'hey', 'salam', 'السلام'];
 
 const WELCOME_MSG =
-  `🌿 *Welcome to Sage & Salt Restaurant!*\n\n` +
-  `Experience artisan dining with premium taste and fast delivery. ` +
-  `From handcrafted burgers to wood-fired pizzas — every dish is made fresh with love.\n\n` +
-  `📍 *Place your order here:*\n` +
+  `*Welcome To Sage & Salt Restaurant!*\n\n` +
+  `Experience Artisan Dining With Premium Taste And Fast Delivery. ` +
+  `From Handcrafted Burgers To Wood-Fired Pizzas Every Dish Is Made Fresh With Love.\n\n` +
+  `📍 *Place Your Order Here:*\n` +
   `https://sage-and-salt.vercel.app/\n\n` +
   `We Are Excited To Serve You ❤️`;
 
