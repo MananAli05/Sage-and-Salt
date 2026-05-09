@@ -2,16 +2,16 @@
 const GREETINGS = ['hi', 'hello', 'start', 'hey', 'salam', 'السلام'];
 
 const MENU_ITEMS = [
-  { name: 'Classic Burger', price: 'Rs 350', spicy: '🌶️', special: true },
-  { name: 'Spicy Chicken Burger', price: 'Rs 400', spicy: '🌶️🌶️🌶️', special: false },
-  { name: 'Cheese Burger Deluxe', price: 'Rs 450', spicy: '🌶️', special: true },
-  { name: 'Margherita Pizza', price: 'Rs 550', spicy: '🌶️', special: false },
-  { name: 'Pepperoni Pizza', price: 'Rs 600', spicy: '🌶️🌶️', special: false },
-  { name: 'BBQ Chicken Pizza', price: 'Rs 650', spicy: '🌶️🌶️🌶️', special: true },
-  { name: 'Grilled Chicken Sandwich', price: 'Rs 380', spicy: '🌶️', special: false },
-  { name: 'Spicy Paneer Sandwich', price: 'Rs 420', spicy: '🌶️🌶️🌶️', special: false },
-  { name: 'Biryani (Chicken)', price: 'Rs 480', spicy: '🌶️🌶️', special: false },
-  { name: 'Biryani (Mutton)', price: 'Rs 580', spicy: '🌶️🌶️🌶️', special: false },
+  { name: 'Classic Burger', price: 'Rs 350', spicy: 'Mild', special: true },
+  { name: 'Spicy Chicken Burger', price: 'Rs 400', spicy: 'Extra Hot', special: false },
+  { name: 'Cheese Burger Deluxe', price: 'Rs 450', spicy: 'Mild', special: true },
+  { name: 'Margherita Pizza', price: 'Rs 550', spicy: 'Mild', special: false },
+  { name: 'Pepperoni Pizza', price: 'Rs 600', spicy: 'Medium', special: false },
+  { name: 'BBQ Chicken Pizza', price: 'Rs 650', spicy: 'Extra Hot', special: true },
+  { name: 'Grilled Chicken Sandwich', price: 'Rs 380', spicy: 'Mild', special: false },
+  { name: 'Spicy Paneer Sandwich', price: 'Rs 420', spicy: 'Extra Hot', special: false },
+  { name: 'Biryani (Chicken)', price: 'Rs 480', spicy: 'Medium', special: false },
+  { name: 'Biryani (Mutton)', price: 'Rs 580', spicy: 'Extra Hot', special: false },
 ];
 
 const SPECIALS = MENU_ITEMS.filter(item => item.special);
@@ -31,7 +31,7 @@ const WELCOME_MSG =
 const MENU_MSG = () => {
   let msg = `*🍔 SAGE & SALT MENU 🍕*\n\n`;
   MENU_ITEMS.forEach(item => {
-    msg += `📌 *${item.name}* - ${item.price}\n   Spice: ${item.spicy}\n\n`;
+    msg += `📌 *${item.name}* - ${item.price}\n   Level: ${item.spicy}\n\n`;
   });
   msg += `\n*Order now:* https://sage-and-salt.vercel.app/`;
   return msg;
@@ -40,17 +40,17 @@ const MENU_MSG = () => {
 const SPECIALS_MSG = () => {
   let msg = `*⭐ TODAY'S SPECIALS ⭐*\n\n`;
   SPECIALS.forEach(item => {
-    msg += `🌟 *${item.name}* - ${item.price}\n   Spice: ${item.spicy}\n\n`;
+    msg += `🌟 *${item.name}* - ${item.price}\n   Level: ${item.spicy}\n\n`;
   });
   msg += `\n*Order now:* https://sage-and-salt.vercel.app/`;
   return msg;
 };
 
 const SPICY_ITEMS_MSG = () => {
-  const spicyItems = MENU_ITEMS.filter(item => item.spicy.length > 5);
-  let msg = `*🌶️ SPICY ITEMS 🌶️*\n\n`;
+  const spicyItems = MENU_ITEMS.filter(item => item.spicy === 'Hot' || item.spicy === 'Extra Hot');
+  let msg = `*🔥 SPICY ITEMS 🔥*\n\n`;
   spicyItems.forEach(item => {
-    msg += `🔥 *${item.name}* - ${item.price}\n   Spice: ${item.spicy}\n\n`;
+    msg += `🌟 *${item.name}* - ${item.price}\n   Level: ${item.spicy}\n\n`;
   });
   msg += `\n*Order now:* https://sage-and-salt.vercel.app/`;
   return msg;
