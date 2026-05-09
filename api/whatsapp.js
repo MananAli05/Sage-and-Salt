@@ -1,16 +1,64 @@
 
 const GREETINGS = ['hi', 'hello', 'start', 'hey', 'salam', 'السلام'];
 
+const MENU_ITEMS = [
+  { name: 'Classic Burger', price: 'Rs 350', spicy: '🌶️', special: true },
+  { name: 'Spicy Chicken Burger', price: 'Rs 400', spicy: '🌶️🌶️🌶️', special: false },
+  { name: 'Cheese Burger Deluxe', price: 'Rs 450', spicy: '🌶️', special: true },
+  { name: 'Margherita Pizza', price: 'Rs 550', spicy: '🌶️', special: false },
+  { name: 'Pepperoni Pizza', price: 'Rs 600', spicy: '🌶️🌶️', special: false },
+  { name: 'BBQ Chicken Pizza', price: 'Rs 650', spicy: '🌶️🌶️🌶️', special: true },
+  { name: 'Grilled Chicken Sandwich', price: 'Rs 380', spicy: '🌶️', special: false },
+  { name: 'Spicy Paneer Sandwich', price: 'Rs 420', spicy: '🌶️🌶️🌶️', special: false },
+  { name: 'Biryani (Chicken)', price: 'Rs 480', spicy: '🌶️🌶️', special: false },
+  { name: 'Biryani (Mutton)', price: 'Rs 580', spicy: '🌶️🌶️🌶️', special: false },
+];
+
+const SPECIALS = MENU_ITEMS.filter(item => item.special);
+
 const WELCOME_MSG =
   `*Welcome To Sage & Salt Restaurant!*\n\n` +
   `Experience Artisan Dining With Premium Taste And Fast Delivery. ` +
   `From Handcrafted Burgers To Wood-Fired Pizzas Every Dish Is Made Fresh With Love.\n\n` +
+  `*What would you like to know?*\n` +
+  `1️⃣ Type *"menu"* to see our full menu\n` +
+  `2️⃣ Type *"special"* to see today's specials\n` +
+  `3️⃣ Type *"spicy"* to see spicy items\n` +
   `📍 *Place Your Order Here:*\n` +
   `https://sage-and-salt.vercel.app/\n\n` +
   `We Are Excited To Serve You ❤️`;
 
+const MENU_MSG = () => {
+  let msg = `*🍔 SAGE & SALT MENU 🍕*\n\n`;
+  MENU_ITEMS.forEach(item => {
+    msg += `📌 *${item.name}* - ${item.price}\n   Spice: ${item.spicy}\n\n`;
+  });
+  msg += `\n*Order now:* https://sage-and-salt.vercel.app/`;
+  return msg;
+};
+
+const SPECIALS_MSG = () => {
+  let msg = `*⭐ TODAY'S SPECIALS ⭐*\n\n`;
+  SPECIALS.forEach(item => {
+    msg += `🌟 *${item.name}* - ${item.price}\n   Spice: ${item.spicy}\n\n`;
+  });
+  msg += `\n*Order now:* https://sage-and-salt.vercel.app/`;
+  return msg;
+};
+
+const SPICY_ITEMS_MSG = () => {
+  const spicyItems = MENU_ITEMS.filter(item => item.spicy.length > 5);
+  let msg = `*🌶️ SPICY ITEMS 🌶️*\n\n`;
+  spicyItems.forEach(item => {
+    msg += `🔥 *${item.name}* - ${item.price}\n   Spice: ${item.spicy}\n\n`;
+  });
+  msg += `\n*Order now:* https://sage-and-salt.vercel.app/`;
+  return msg;
+};
+
 const FALLBACK_MSG =
-  `Please type *"Hi"* to start ordering 🍔\n\n` +
+  `😊 Type *"hi"* to see our menu\n` +
+  `Or ask about: *"menu"*, *"special"*, *"spicy"*\n\n` +
   `Or visit: https://sage-and-salt.vercel.app/`;
 
 function isGreetingMessage(text) {
@@ -67,8 +115,21 @@ export default async function handler(req, res) {
 
     console.log(`[Bot] From: ${from} → "${incomingMsg}"`);
 
-    const isGreeting = isGreetingMessage(incomingMsg);
-    const reply      = isGreeting ? WELCOME_MSG : FALLBACK_MSG;
+    let reply = FALLBACK_MSG;
+    
+    if (isGreetingMessage(incomingMsg)) {
+      reply = WELCOME_MSG;
+    } else if (incomingMsg.includes('menu')) {
+      reply = MENU_MSG();
+    } else if (incomingMsg.includes('special')) {
+      reply = SPECIALS_MSG();
+    } else if (incomingMsg.includes('spicy')) {
+      reply = SPICY_ITEMS_MSG();
+    } else if (incomingMsg.includes('price') || incomingMsg.includes('cost')) {
+      reply = MENU_MSG();
+    } else if (incomingMsg.includes('what') && incomingMsg.includes('have')) {
+      reply = MENU_MSG();
+    }
 
     res.setHeader('Content-Type', 'text/xml');
     return res.status(200).send(twiml(reply));
