@@ -1,5 +1,3 @@
-// Sage & Salt WhatsApp Webhook (Vercel Serverless)
-// Uses raw TwiML XML response with no external SDK dependency.
 
 const GREETINGS = ['hi', 'hello', 'start', 'hey', 'salam', 'السلام'];
 
