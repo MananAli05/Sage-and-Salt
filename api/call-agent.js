@@ -12,10 +12,7 @@ export default async function handler(req, res) {
   const url = new URL(req.url, `https://${req.headers.host}`);
   const stage = url.searchParams.get('stage') || 'welcome';
   const callSid = params.CallSid || 'unknown';
-  const speech = (params.SpeechResult || '').trim();
   const baseUrl = process.env.BASE_URL || `https://${req.headers.host}`;
-
-  console.log(`[call-agent] stage=${stage} callSid=${callSid} speech="${speech}"`);
 
   // Session storage (in production, use Redis/DB)
   const sessionKey = `session_${callSid}`;
@@ -36,6 +33,78 @@ export default async function handler(req, res) {
     res.setHeader('Content-Type', 'application/xml');
     return res.status(200).send(body);
   };
+
+  const promptAndRecord = (message, nextStage) => {
+    const nextUrl = `${baseUrl}/api/call-agent?stage=${nextStage}`;
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say language="ur-PK" voice="alice">${escapeXml(message)}</Say>
+  <Record action="${nextUrl}" method="POST" maxLength="12" timeout="6" playBeep="true" trim="trim-silence" />
+</Response>`;
+  };
+
+  const extractUserSpeech = async (requestParams) => {
+    const directSpeech = (requestParams.SpeechResult || '').trim();
+    if (directSpeech) return directSpeech;
+
+    const recordingUrl = requestParams.RecordingUrl;
+    if (!recordingUrl) return '';
+
+    try {
+      const accountSid = process.env.TWILIO_ACCOUNT_SID;
+      const authToken = process.env.TWILIO_AUTH_TOKEN;
+      const groqKey = process.env.GROQ_API_KEY;
+
+      if (!accountSid || !authToken || !groqKey) {
+        console.warn('[Speech] Missing credentials for recording transcription');
+        return '';
+      }
+
+      const authHeader = `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`;
+      let audioResp = await fetch(`${recordingUrl}.mp3`, {
+        headers: { Authorization: authHeader },
+      });
+
+      if (!audioResp.ok) {
+        audioResp = await fetch(`${recordingUrl}.wav`, {
+          headers: { Authorization: authHeader },
+        });
+      }
+
+      if (!audioResp.ok) {
+        console.error('[Speech] Unable to fetch recording', audioResp.status);
+        return '';
+      }
+
+      const audioBuffer = Buffer.from(await audioResp.arrayBuffer());
+      const formData = new FormData();
+      formData.append('file', new Blob([audioBuffer]), 'recording.mp3');
+      formData.append('model', process.env.GROQ_WHISPER_MODEL || 'whisper-large-v3');
+
+      const transcribeResp = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${groqKey}`,
+        },
+        body: formData,
+      });
+
+      if (!transcribeResp.ok) {
+        const errText = await transcribeResp.text();
+        console.error('[Speech] Groq transcription failed', transcribeResp.status, errText);
+        return '';
+      }
+
+      const data = await transcribeResp.json();
+      return (data?.text || '').trim();
+    } catch (error) {
+      console.error('[Speech] Transcription error', error.message);
+      return '';
+    }
+  };
+
+  const speech = await extractUserSpeech(params);
+  console.log(`[call-agent] stage=${stage} callSid=${callSid} transcribed="${speech}"`);
 
   // Call Groq API with Llama 70B for natural conversation
   const callGroq = async (userMessage, systemPrompt) => {
@@ -124,122 +193,98 @@ export default async function handler(req, res) {
 
   // STAGE 1: Welcome
   if (stage === 'welcome') {
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say language="ur-PK" voice="alice">Assalam o alaikum! Main Sage and Salt Restaurant se baat kar raha hon. Aap kya order karna chahte hain? Humara hai Pizza, Burger, Sandwich aur Biryani.</Say>
-  <Gather input="speech" speechTimeout="5" action="${baseUrl}/api/call-agent?stage=process" method="POST" language="ur-PK"/>
-</Response>`;
+    const twiml = promptAndRecord(
+      'Assalam o alaikum. Sirf item ka naam bolain: pizza, burger, sandwich ya biryani.',
+      'process'
+    );
     global[sessionKey] = sessionData;
     return xml(twiml);
   }
 
   // STAGE 2: Process item order
-  if (stage === 'process' && speech) {
-    const systemPrompt = `You are a friendly Urdu restaurant assistant. User wants to order. 
-Extract item from: "${speech}". Reply in Urdu, confirm item and ask for size (Large/Medium/Small).`;
-
+  if (stage === 'process') {
     const intent = await extractIntent(speech);
     sessionData.item = intent.item || sessionData.item;
 
-    const response = await callGroq(speech, systemPrompt);
-    const agentReply = response || `Shukriya! Aapne ${sessionData.item} select kia. Kya size chahiye? Large, Medium ya Small?`;
-
     if (!sessionData.item) {
-      // Item not understood, ask again
-      const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say language="ur-PK" voice="alice">Mujhe samajh nahi aaya. Kripaya dobara batain - Pizza, Burger, Sandwich ya Biryani?</Say>
-  <Gather input="speech" speechTimeout="5" action="${baseUrl}/api/call-agent?stage=process" method="POST" language="ur-PK"/>
-</Response>`;
+      const twiml = promptAndRecord(
+        'Mujhe samajh nahi aaya. Dobara sirf item ka naam bolain: pizza, burger, sandwich ya biryani.',
+        'process'
+      );
       global[sessionKey] = sessionData;
       return xml(twiml);
     }
 
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say language="ur-PK" voice="alice">${agentReply}</Say>
-  <Gather input="speech" speechTimeout="5" action="${baseUrl}/api/call-agent?stage=size" method="POST" language="ur-PK"/>
-</Response>`;
+    const twiml = promptAndRecord(
+      `${sessionData.item} theek hai. Ab size bolain: large, medium ya small.`,
+      'size'
+    );
     global[sessionKey] = sessionData;
     return xml(twiml);
   }
 
   // STAGE 3: Ask for size and flavor
-  if (stage === 'size' && speech) {
+  if (stage === 'size') {
     const intent = await extractIntent(speech);
     sessionData.size = intent.size || 'Medium';
 
-    const systemPrompt = `User said: "${speech}". You are a restaurant assistant asking for flavor/type preference in Urdu.
-Ask if they want any special flavor or type (e.g., with cheese, spicy, etc.). Reply short in Urdu.`;
-
-    const response = await callGroq(speech, systemPrompt);
-    const agentReply = response || `Theek hai! ${sessionData.size} size. Kya flavor pasand hai - Spicy, Cheese, ya Normal?`;
-
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say language="ur-PK" voice="alice">${agentReply}</Say>
-  <Gather input="speech" speechTimeout="5" action="${baseUrl}/api/call-agent?stage=flavor" method="POST" language="ur-PK"/>
-</Response>`;
+    const twiml = promptAndRecord(
+      `${sessionData.size} size theek hai. Ab flavor bolain, jaise spicy ya cheese.`,
+      'flavor'
+    );
     global[sessionKey] = sessionData;
     return xml(twiml);
   }
 
   // STAGE 4: Flavor selected, confirm and ask for details
-  if (stage === 'flavor' && speech) {
+  if (stage === 'flavor') {
     sessionData.flavor = speech;
 
     const confirmMsg = `Bilkul! Aapka order confirm hua: ${sessionData.item}, ${sessionData.size}, ${sessionData.flavor}. Aab apna nam batain.`;
 
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say language="ur-PK" voice="alice">${confirmMsg}</Say>
-  <Gather input="speech" speechTimeout="5" action="${baseUrl}/api/call-agent?stage=name" method="POST" language="ur-PK"/>
-</Response>`;
+    const twiml = promptAndRecord(confirmMsg, 'name');
     global[sessionKey] = sessionData;
     return xml(twiml);
   }
 
   // STAGE 5: Get customer name
-  if (stage === 'name' && speech) {
+  if (stage === 'name') {
     sessionData.name = speech.trim();
 
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say language="ur-PK" voice="alice">Shukriya ${sessionData.name}! Ab apna phone number batain.</Say>
-  <Gather input="speech" speechTimeout="5" action="${baseUrl}/api/call-agent?stage=phone" method="POST" language="ur-PK"/>
-</Response>`;
+    const twiml = promptAndRecord(
+      `${sessionData.name}! Ab apna phone number bolain.`,
+      'phone'
+    );
     global[sessionKey] = sessionData;
     return xml(twiml);
   }
 
   // STAGE 6: Get phone number
-  if (stage === 'phone' && speech) {
+  if (stage === 'phone') {
     sessionData.phone = speech.replace(/\D/g, '').slice(-10); // Extract digits
 
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say language="ur-PK" voice="alice">Shukriya! Ab apna address batain kahan deliver karna hai.</Say>
-  <Gather input="speech" speechTimeout="8" action="${baseUrl}/api/call-agent?stage=address" method="POST" language="ur-PK"/>
-</Response>`;
+    const twiml = promptAndRecord(
+      'Shukriya. Ab apna address bolain.',
+      'address'
+    );
     global[sessionKey] = sessionData;
     return xml(twiml);
   }
 
   // STAGE 7: Get address
-  if (stage === 'address' && speech) {
+  if (stage === 'address') {
     sessionData.address = speech.trim();
 
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say language="ur-PK" voice="alice">Bilkul! Ab batain payment online karna hai ya Cash on Delivery?</Say>
-  <Gather input="speech" speechTimeout="5" action="${baseUrl}/api/call-agent?stage=payment" method="POST" language="ur-PK"/>
-</Response>`;
+    const twiml = promptAndRecord(
+      'Ab payment method bolain: online ya cash on delivery.',
+      'payment'
+    );
     global[sessionKey] = sessionData;
     return xml(twiml);
   }
 
   // STAGE 8: Get payment method and save order
-  if (stage === 'payment' && speech) {
+  if (stage === 'payment') {
     const t = speech.toLowerCase();
     sessionData.paymentMethod = t.includes('online') ? 'Online' : 'Cash on Delivery';
 
