@@ -38,7 +38,7 @@ export default async function handler(req, res) {
     const nextUrl = `${baseUrl}/api/call-agent?stage=${nextStage}`;
     return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say language="ur-PK" voice="alice">${escapeXml(message)}</Say>
+  <Say language="hi-IN" voice="Polly.Aditi">${escapeXml(message)}</Say>
   <Record action="${nextUrl}" method="POST" maxLength="12" timeout="6" playBeep="true" trim="trim-silence" />
 </Response>`;
   };
@@ -194,7 +194,7 @@ export default async function handler(req, res) {
   // STAGE 1: Welcome
   if (stage === 'welcome') {
     const twiml = promptAndRecord(
-      'Assalam o alaikum. Sirf item ka naam bolain: pizza, burger, sandwich ya biryani.',
+      'Assalam o alaikum. Sirf item bolain: pizza, burger, sandwich ya biryani.',
       'process'
     );
     global[sessionKey] = sessionData;
@@ -208,7 +208,7 @@ export default async function handler(req, res) {
 
     if (!sessionData.item) {
       const twiml = promptAndRecord(
-        'Mujhe samajh nahi aaya. Dobara sirf item ka naam bolain: pizza, burger, sandwich ya biryani.',
+        'Samajh nahi aaya. Dobara sirf item bolain: pizza, burger, sandwich ya biryani.',
         'process'
       );
       global[sessionKey] = sessionData;
@@ -229,7 +229,7 @@ export default async function handler(req, res) {
     sessionData.size = intent.size || 'Medium';
 
     const twiml = promptAndRecord(
-      `${sessionData.size} size theek hai. Ab flavor bolain, jaise spicy ya cheese.`,
+      `${sessionData.size} size theek hai. Ab flavor bolain: spicy ya cheese.`,
       'flavor'
     );
     global[sessionKey] = sessionData;
@@ -240,7 +240,7 @@ export default async function handler(req, res) {
   if (stage === 'flavor') {
     sessionData.flavor = speech;
 
-    const confirmMsg = `Bilkul! Aapka order confirm hua: ${sessionData.item}, ${sessionData.size}, ${sessionData.flavor}. Aab apna nam batain.`;
+    const confirmMsg = `Theek hai. Aapka order hai: ${sessionData.item}, ${sessionData.size}, ${sessionData.flavor}. Ab naam bolain.`;
 
     const twiml = promptAndRecord(confirmMsg, 'name');
     global[sessionKey] = sessionData;
@@ -252,7 +252,7 @@ export default async function handler(req, res) {
     sessionData.name = speech.trim();
 
     const twiml = promptAndRecord(
-      `${sessionData.name}! Ab apna phone number bolain.`,
+      `${sessionData.name}. Ab phone number bolain.`,
       'phone'
     );
     global[sessionKey] = sessionData;
@@ -264,7 +264,7 @@ export default async function handler(req, res) {
     sessionData.phone = speech.replace(/\D/g, '').slice(-10); // Extract digits
 
     const twiml = promptAndRecord(
-      'Shukriya. Ab apna address bolain.',
+      'Shukriya. Ab address bolain.',
       'address'
     );
     global[sessionKey] = sessionData;
@@ -276,7 +276,7 @@ export default async function handler(req, res) {
     sessionData.address = speech.trim();
 
     const twiml = promptAndRecord(
-      'Ab payment method bolain: online ya cash on delivery.',
+      'Ab payment bolain: online ya cash on delivery.',
       'payment'
     );
     global[sessionKey] = sessionData;
