@@ -12,11 +12,11 @@ The voice call agent provides a **natural conversation flow** in Urdu/English fo
 ```
 1. Welcome
    Agent: "Assalam o alaikum! Main Sage and Salt Restaurant se baat kar raha hon. 
-           Aap kya order karna chahte hain? Hamara hai Pizza, Burger, Sandwich aur Biryani."
-
-2. Item Selection
-   User: "Mera pizza kar du" (I want pizza)
+- **Groq Whisper Large v3** for Urdu speech-to-text (Speech-to-Text)
+- **Groq LLaMA 3.3 70B** for natural language understanding & intent extraction
+- **Twilio** for voice handling & TTS (Text-to-Speech)
    Agent: Confirms item and asks for size
+**✓ Single Groq API Key** handles both speech recognition AND NLU—no additional APIs needed!
 
 3. Size & Flavor
    Agent: "Kya size chahiye? Large, Medium ya Small?"
@@ -47,7 +47,6 @@ Copy `.env.example` to `.env.local`:
 ```bash
 GROQ_API_KEY=sk_xxxxxxxxxxxxx
 GROQ_MODEL=llama-70b-8192
-OPENAI_API_KEY=sk_xxxxxxxxxxxxx
 BASE_URL=https://sage-and-salt.vercel.app
 TWILIO_ACCOUNT_SID=ACxxxxxxxxxxx
 TWILIO_AUTH_TOKEN=xxxxxxxxxxxxx
@@ -60,15 +59,24 @@ FIREBASE_PROJECT_ID=your-project-id
 2. Create/Configure Phone Number
 3. Set Voice Webhook to: `https://sage-and-salt.vercel.app/api/voice`
 
+### 2.5 Groq API Setup ⭐ REQUIRED
+1. Go to https://console.groq.com/keys
+2. Click "**Create API Key**"
+3. Copy the key (starts with `gsk_` or `sk_`)
+4. Add to `.env.local`: `GROQ_API_KEY=your_key_here`
+5. Add to **Vercel Environment Variables** (Settings → Environment Variables)
+
+**Groq API includes:**
+- ✓ Whisper Large v3 (Urdu speech-to-text)
+- ✓ LLaMA 70B (intent extraction & conversation)
+- ✓ Free tier with generous monthly quota
+
 ### 3. Firebase Setup
 1. Create Firestore database
 2. Create collection: `orders`
 3. Enable anonymous authentication (or service account)
 4. Copy credentials to `.env.local`
 
-### 4. Groq API Setup
-1. Get API key from https://console.groq.com
-2. Add to `GROQ_API_KEY` in env
 
 ## API Endpoints
 

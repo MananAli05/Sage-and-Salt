@@ -1,6 +1,3 @@
-// Twilio Voice handler for incoming calls
-// Routes to call-agent for natural conversation
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(200).json({ status: 'ok', service: 'voice' });

@@ -41,6 +41,30 @@ vercel --prod
 
 ---
 
+## 🔐 Quick Setup: Groq API Key
+
+**Your setup just got simpler!** You're now using **Groq for everything**:
+
+### Get Groq API Key (2 minutes)
+1. Go to https://console.groq.com/keys
+2. Click **"Create API Key"**
+3. Copy the key (format: `gsk_xxxxx` or `sk_xxxxx`)
+4. Add to Vercel:
+   - Dashboard → Settings → Environment Variables
+   - Name: `GROQ_API_KEY`
+   - Value: `(your key)`
+   - Click Save & Deploy
+
+### What Groq Provides
+| Service | Purpose | Included |
+|---------|---------|----------|
+| **Whisper Large v3** | Urdu speech-to-text | ✅ Free tier |
+| **LLaMA 70B** | Intent extraction & NLU | ✅ Free tier |
+| **Models** | 5+ other models available | ✅ Included |
+
+✓ **No need for OpenAI key anymore!**
+
+
 ## 🔑 Environment Variables Setup (IMPORTANT!)
 
 Go to Vercel Dashboard → Settings → Environment Variables and add:
@@ -49,7 +73,6 @@ Go to Vercel Dashboard → Settings → Environment Variables and add:
 GROQ_API_KEY = sk_xxxxxxxxxxxxx
 GROQ_MODEL = llama-70b-8192
 
-OPENAI_API_KEY = sk_xxxxxxxxxxxxx
 
 TWILIO_ACCOUNT_SID = ACxxxxxxxxxxx
 TWILIO_AUTH_TOKEN = xxxxxxxxxxxxx
@@ -232,14 +255,7 @@ NODE_ENV = production
 - [ ] Vercel deployment successful
 
 ---
-
-## 📞 Support & Resources
-
-- **Groq API Docs:** https://console.groq.com/docs
-- **Twilio Docs:** https://www.twilio.com/docs/voice/twiml
-- **Firebase Docs:** https://firebase.google.com/docs/firestore
-- **Vercel Docs:** https://vercel.com/docs
-
+- [ ] Groq API key created (https://console.groq.com/keys)
 ---
 
 **Status:** ✅ Ready for Deployment  
