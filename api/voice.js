@@ -30,8 +30,3 @@ export default async function handler(req, res) {
     return res.status(200).send(errorTwiml);
   }
 }
-  }
-
-  res.setHeader('Content-Type', 'application/xml');
-  return res.status(200).send(twiml);
-}
