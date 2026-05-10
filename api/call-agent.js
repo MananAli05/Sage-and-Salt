@@ -1,6 +1,5 @@
-// Twilio Voice webhook — Urdu ordering agent
-// Voices: Polly.Joanna (female, en-GB) — Urdu language (ur-PK) NOT supported by Twilio Polly
-// Using English instead. See line 20 fix below.
+// Twilio Voice webhook — speech-driven ordering agent
+// Twilio Polly does not support ur-PK, so we use supported English voices.
 // Session: passed via URL query params (serverless-safe, no global/Redis needed)
 // Requires env vars: GROQ_API_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, BASE_URL
 
@@ -14,14 +13,17 @@ function escapeXml(str) {
     .replace(/'/g,  '&apos;');
 }
 
-// ── Build a Say+Record TwiML block ────────────────────────────────────────────
-function promptAndRecord(message, actionUrl) {
+// ── Build a Say+Gather TwiML block ────────────────────────────────────────────
+function promptAndGather(message, actionUrl) {
   // & in URLs must be &amp; inside XML attributes — bare & = parse failure (error 12100)
   const safeUrl = actionUrl.replace(/&/g, '&amp;');
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say language="en-GB" voice="Polly.Joanna">${escapeXml(message)}</Say>
-  <Record action="${safeUrl}" method="POST" maxLength="15" timeout="6" playBeep="true" trim="trim-silence" />
+  <Gather input="speech" action="${safeUrl}" method="POST" timeout="5" speechTimeout="auto" language="en-US">
+    <Say language="en-GB" voice="Polly.Joanna">${escapeXml(message)}</Say>
+  </Gather>
+  <Say language="en-GB" voice="Polly.Joanna">Mujhe aap ki awaaz theek se nahi mili. Dobara saaf bolain.</Say>
+  <Redirect method="POST">${safeUrl}</Redirect>
 </Response>`;
 }
 
@@ -249,7 +251,7 @@ export default async function handler(req, res) {
     // ════════════════════════════════════════════════════════════════════════
     if (stage === 'welcome') {
       const nextUrl = buildNextUrl(baseUrl, 'item', session);
-      return reply(promptAndRecord(
+      return reply(promptAndGather(
         'Assalam o alaikum! Sage aur Salt mein khush aamdeed. Aap kya order karna chahenge? Pizza, Burger, Sandwich ya Biryani bolain.',
         nextUrl
       ));
@@ -267,7 +269,7 @@ export default async function handler(req, res) {
       if (!session.item) {
         console.log(`[call-agent:item] No item detected, asking again`);
         const nextUrl = buildNextUrl(baseUrl, 'item', session);
-        return reply(promptAndRecord(
+        return reply(promptAndGather(
           'Maafi chahta hoon, samajh nahi aaya. Sirf item bolain: Pizza, Burger, Sandwich ya Biryani.',
           nextUrl
         ));
@@ -275,7 +277,7 @@ export default async function handler(req, res) {
 
       console.log(`[call-agent:item] Item detected: ${session.item}, moving to size stage`);
       const nextUrl = buildNextUrl(baseUrl, 'size', session);
-      return reply(promptAndRecord(
+      return reply(promptAndGather(
         `${session.item} — bilkul theek hai. Ab size bolain: Large, Medium ya Small.`,
         nextUrl
       ));
@@ -289,7 +291,7 @@ export default async function handler(req, res) {
       session.size = intent.size || 'medium';
 
       const nextUrl = buildNextUrl(baseUrl, 'name', session);
-      return reply(promptAndRecord(
+      return reply(promptAndGather(
         `${session.size} size — theek hai. Ab apna naam bolain.`,
         nextUrl
       ));
@@ -301,7 +303,7 @@ export default async function handler(req, res) {
     if (stage === 'name') {
       session.name = speech.trim() || 'Customer';
       const nextUrl = buildNextUrl(baseUrl, 'phone', session);
-      return reply(promptAndRecord(
+      return reply(promptAndGather(
         `${session.name} — shukriya. Ab apna phone number bolain.`,
         nextUrl
       ));
@@ -313,7 +315,7 @@ export default async function handler(req, res) {
     if (stage === 'phone') {
       session.phone = speech.replace(/\D/g, '').slice(-11) || speech.trim();
       const nextUrl = buildNextUrl(baseUrl, 'address', session);
-      return reply(promptAndRecord(
+      return reply(promptAndGather(
         'Shukriya. Ab apna delivery address bolain.',
         nextUrl
       ));
@@ -325,7 +327,7 @@ export default async function handler(req, res) {
     if (stage === 'address') {
       session.address = speech.trim() || 'Not provided';
       const nextUrl = buildNextUrl(baseUrl, 'payment', session);
-      return reply(promptAndRecord(
+      return reply(promptAndGather(
         'Theek hai. Payment ka tareeqa bolain: Online ya Cash on Delivery.',
         nextUrl
       ));
@@ -375,7 +377,7 @@ export default async function handler(req, res) {
 
       return reply(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say language="ur-PK" voice="Polly.Raza">${escapeXml(thanks)}</Say>
+  <Say language="en-GB" voice="Polly.Joanna">${escapeXml(thanks)}</Say>
   <Hangup/>
 </Response>`);
     }
@@ -385,7 +387,7 @@ export default async function handler(req, res) {
     // ════════════════════════════════════════════════════════════════════════
     return reply(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say language="ur-PK" voice="Polly.Raza">Kuch masla aagaya. Baad mein call karain. Shukriya.</Say>
+  <Say language="en-GB" voice="Polly.Joanna">Kuch masla aagaya. Baad mein call karain. Shukriya.</Say>
   <Hangup/>
 </Response>`);
 
@@ -394,7 +396,7 @@ export default async function handler(req, res) {
     res.setHeader('Content-Type', 'application/xml');
     return res.status(200).send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say language="ur-PK" voice="Polly.Raza">Kuch masla aagaya. Baad mein call karain. Shukriya.</Say>
+  <Say language="en-GB" voice="Polly.Joanna">Kuch masla aagaya. Baad mein call karain. Shukriya.</Say>
   <Hangup/>
 </Response>`);
   }
