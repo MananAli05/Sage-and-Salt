@@ -33,12 +33,46 @@ const BellIcon = () => (
 );
 
 // ─── Waiter Request Modal ─────────────────────────────────────────────────────
+// ── Waiter Option SVG Icons ────────────────────────────────────────────────
+const WaterSVG = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 2C6 10 4 14 4 16a8 8 0 0016 0c0-2-2-6-8-14z"/>
+    <path d="M12 14c0 2 1.5 3 3 3" opacity="0.5"/>
+  </svg>
+);
+const TissueSVG = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="3"/>
+    <path d="M3 9h18M9 9v12"/>
+    <path d="M13 13h4M13 17h4" opacity="0.5"/>
+  </svg>
+);
+const CutlerySVG = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 2v7c0 1.1.9 2 2 2s2-.9 2-2V2M5 11v11"/>
+    <path d="M21 15a3 3 0 01-3 3h-1v4h-1V2c2.2.9 5 4.3 5 13z"/>
+  </svg>
+);
+const SauceSVG = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M10 2h4v3h2a1 1 0 011 1v1H7V6a1 1 0 011-1h2V2z"/>
+    <path d="M7 7l-1 13a1 1 0 001 1h10a1 1 0 001-1L17 7H7z"/>
+    <path d="M10 11v5M14 11v5" opacity="0.5"/>
+  </svg>
+);
+const BillSVG = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 00-2 2v16l3-2 3 2 3-2 3 2V4a2 2 0 00-2-2z"/>
+    <path d="M8 9h8M8 13h6M8 17h4" opacity="0.6"/>
+  </svg>
+);
+
 const WAITER_OPTIONS = [
-  { id: 'water',   label: 'Water Bottle',      icon: '💧' },
-  { id: 'tissue',  label: 'Tissues / Napkins', icon: '🧻' },
-  { id: 'cutlery', label: 'Extra Cutlery',     icon: '🍴' },
-  { id: 'sauce',   label: 'Extra Sauce',       icon: '🫙' },
-  { id: 'bill',    label: 'Request Bill',      icon: '🧾' },
+  { id: 'water',   label: 'Water Bottle',      icon: <WaterSVG />  },
+  { id: 'tissue',  label: 'Tissues / Napkins', icon: <TissueSVG /> },
+  { id: 'cutlery', label: 'Extra Cutlery',     icon: <CutlerySVG />},
+  { id: 'sauce',   label: 'Extra Sauce',       icon: <SauceSVG />  },
+  { id: 'bill',    label: 'Request Bill',      icon: <BillSVG />   },
 ];
 
 function WaiterModal({ tableNo, onClose }) {
@@ -360,7 +394,7 @@ function OrderModal({ cart, onClose, onOrderPlaced }) {
 
           {isDineIn && (
             <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'8px', padding:'0.6rem 0.85rem', fontSize:'0.82rem', color:'#1e40af', marginBottom:'0.5rem' }}>
-              🪑 Dine-in order for <strong>Table {new URLSearchParams(window.location.search).get('table')}</strong> — no delivery needed.
+               Dine-In Order For <strong>Table {new URLSearchParams(window.location.search).get('table')}</strong>  Delivery Not Needed.
             </div>
           )}
 
