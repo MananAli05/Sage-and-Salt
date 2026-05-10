@@ -15,10 +15,12 @@ function escapeXml(str) {
 
 // ── Build a Say+Record TwiML block ────────────────────────────────────────────
 function promptAndRecord(message, actionUrl) {
+  // & in URLs must be &amp; inside XML attributes — bare & = parse failure (error 12100)
+  const safeUrl = actionUrl.replace(/&/g, '&amp;');
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say language="ur-PK" voice="Polly.Raza">${escapeXml(message)}</Say>
-  <Record action="${actionUrl}" method="POST" maxLength="15" timeout="6" playBeep="true" trim="trim-silence" />
+  <Record action="${safeUrl}" method="POST" maxLength="15" timeout="6" playBeep="true" trim="trim-silence" />
 </Response>`;
 }
 
