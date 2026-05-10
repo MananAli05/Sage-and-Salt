@@ -1,5 +1,6 @@
 // Twilio Voice webhook — Urdu ordering agent
-// Voices: Polly.Raza (male, ur-PK)
+// Voices: Polly.Joanna (female, en-GB) — Urdu language (ur-PK) NOT supported by Twilio Polly
+// Using English instead. See line 20 fix below.
 // Session: passed via URL query params (serverless-safe, no global/Redis needed)
 // Requires env vars: GROQ_API_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, BASE_URL
 
@@ -19,7 +20,7 @@ function promptAndRecord(message, actionUrl) {
   const safeUrl = actionUrl.replace(/&/g, '&amp;');
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say language="ur-PK" voice="Polly.Raza">${escapeXml(message)}</Say>
+  <Say language="en-GB" voice="Polly.Joanna">${escapeXml(message)}</Say>
   <Record action="${safeUrl}" method="POST" maxLength="15" timeout="6" playBeep="true" trim="trim-silence" />
 </Response>`;
 }
@@ -126,7 +127,7 @@ Use null for fields not mentioned.`,
 export default async function handler(req, res) {
   // Health check
   if (req.method !== 'POST') {
-    return res.status(200).json({ status: 'ok', service: 'call-agent', voice: 'Polly.Raza (ur-PK)' });
+    return res.status(200).json({ status: 'ok', service: 'call-agent', voice: 'Polly.Joanna (en-GB)' });
   }
 
   const reply = (twiml) => {
