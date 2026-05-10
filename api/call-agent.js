@@ -57,46 +57,118 @@ async function getRequestParams(req) {
 
 // ── Transcribe recording with Groq Whisper ────────────────────────────────────
 async function transcribeRecording(recordingUrl) {
-  if (!recordingUrl) return '';
+  if (!recordingUrl) {
+    console.warn('[Whisper] No recording URL provided');
+    return '';
+  }
   try {
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken  = process.env.TWILIO_AUTH_TOKEN;
     const groqKey    = process.env.GROQ_API_KEY;
-    if (!accountSid || !authToken || !groqKey) return '';
+    
+    if (!accountSid || !authToken) {
+      console.error('[Whisper] Missing TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN');
+      return '';
+    }
+    if (!groqKey) {
+      console.error('[Whisper] Missing GROQ_API_KEY');
+      return '';
+    }
 
+    console.log('[Whisper] Fetching audio from:', recordingUrl);
     const auth = `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`;
     let audioResp = await fetch(`${recordingUrl}.mp3`, { headers: { Authorization: auth } });
-    if (!audioResp.ok) audioResp = await fetch(`${recordingUrl}.wav`, { headers: { Authorization: auth } });
-    if (!audioResp.ok) { console.error('[Whisper] Cannot fetch recording:', audioResp.status); return ''; }
+    if (!audioResp.ok) {
+      console.log('[Whisper] MP3 failed, trying WAV...');
+      audioResp = await fetch(`${recordingUrl}.wav`, { headers: { Authorization: auth } });
+    }
+    if (!audioResp.ok) {
+      console.error('[Whisper] Cannot fetch recording:', audioResp.status, audioResp.statusText);
+      return '';
+    }
 
     const audioBuffer = Buffer.from(await audioResp.arrayBuffer());
+    console.log('[Whisper] Audio fetched, size:', audioBuffer.length, 'bytes');
+    
     const form = new FormData();
     form.append('file',  new Blob([audioBuffer]), 'recording.mp3');
     form.append('model', 'whisper-large-v3');
 
+    console.log('[Whisper] Sending to Groq...');
     const resp = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
       method: 'POST',
       headers: { Authorization: `Bearer ${groqKey}` },
       body: form,
     });
-    if (!resp.ok) { console.error('[Whisper] Error:', await resp.text()); return ''; }
-    return ((await resp.json())?.text || '').trim();
+    
+    if (!resp.ok) {
+      const errText = await resp.text();
+      console.error('[Whisper] API Error:', resp.status, errText);
+      return '';
+    }
+    
+    const result = await resp.json();
+    const transcribed = (result?.text || '').trim();
+    console.log('[Whisper] Transcribed:', transcribed);
+    return transcribed;
   } catch (e) {
-    console.error('[Whisper] Exception:', e.message);
+    console.error('[Whisper] Exception:', e.message, e.stack);
     return '';
   }
+}
+
+// ── Simple keyword matching (fallback when Groq fails) ────────────────────────
+function keywordMatch(text) {
+  if (!text) return {};
+  const lower = text.toLowerCase();
+  const result = {};
+
+  // Check for item
+  if (lower.includes('pizza')) result.item = 'pizza';
+  else if (lower.includes('burger')) result.item = 'burger';
+  else if (lower.includes('sandwich')) result.item = 'sandwich';
+  else if (lower.includes('biryani')) result.item = 'biryani';
+
+  // Check for size
+  if (lower.includes('large') || lower.includes('bada')) result.size = 'large';
+  else if (lower.includes('small') || lower.includes('chota')) result.size = 'small';
+  else if (lower.includes('medium') || lower.includes('medium')) result.size = 'medium';
+
+  // Check for payment
+  if (lower.includes('online') || lower.includes('card') || lower.includes('easypaisa')) result.payment = 'online';
+  else if (lower.includes('cash') || lower.includes('COD')) result.payment = 'cash';
+
+  return result;
 }
 
 // ── Extract order intent via Groq Llama ──────────────────────────────────────
 async function extractIntent(speech) {
   const groqKey = process.env.GROQ_API_KEY;
-  if (!groqKey || !speech) return {};
+  if (!speech) {
+    console.warn('[Intent] Empty speech, returning empty object');
+    return {};
+  }
+
+  // First try keyword matching (fast, reliable)
+  const keywordResult = keywordMatch(speech);
+  if (keywordResult.item || keywordResult.size || keywordResult.payment) {
+    console.log('[Intent] Keyword match found:', keywordResult);
+    return keywordResult;
+  }
+
+  // Then try Groq LLM (more sophisticated)
+  if (!groqKey) {
+    console.warn('[Intent] No GROQ_API_KEY, skipping LLM');
+    return keywordResult;
+  }
+
   try {
+    console.log('[Intent] Sending to Groq LLM:', speech);
     const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqKey}` },
       body: JSON.stringify({
-        model: 'llama3-70b-8192',   // fixed: was llama-70b-8192 (wrong name)
+        model: 'llama3-70b-8192',
         temperature: 0.2,
         max_tokens: 80,
         messages: [
@@ -113,13 +185,22 @@ Use null for fields not mentioned.`,
         ],
       }),
     });
-    if (!resp.ok) return {};
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      console.error('[Intent] Groq API error:', resp.status, errText);
+      return keywordResult;
+    }
+
     const text = (await resp.json())?.choices?.[0]?.message?.content || '';
+    console.log('[Intent] Groq response:', text);
     const match = text.match(/\{[\s\S]*\}/);
-    return match ? JSON.parse(match[0]) : {};
+    const parsed = match ? JSON.parse(match[0]) : {};
+    console.log('[Intent] Parsed:', parsed);
+    return parsed;
   } catch (e) {
-    console.error('[Groq] Error:', e.message);
-    return {};
+    console.error('[Intent] Exception:', e.message);
+    return keywordResult;
   }
 }
 
@@ -154,8 +235,14 @@ export default async function handler(req, res) {
     };
 
     // ── Transcribe user recording ────────────────────────────────────────────
+    console.log(`[call-agent] ====== REQUEST START ======`);
+    console.log(`[call-agent] stage=${stage}`);
+    console.log(`[call-agent] RecordingUrl=${body.RecordingUrl || 'none'}`);
+    
     const speech = (body.SpeechResult || '').trim() || await transcribeRecording(body.RecordingUrl);
-    console.log(`[call-agent] stage=${stage} speech="${speech}"`);
+    
+    console.log(`[call-agent] Final speech text: "${speech}"`);
+    console.log(`[call-agent] Speech length: ${speech.length} chars`);
 
     // ════════════════════════════════════════════════════════════════════════
     // STAGE: welcome — greet and ask for item
@@ -172,10 +259,13 @@ export default async function handler(req, res) {
     // STAGE: item — detect what food item
     // ════════════════════════════════════════════════════════════════════════
     if (stage === 'item') {
+      console.log(`[call-agent:item] Extracting intent from: "${speech}"`);
       const intent = await extractIntent(speech);
+      console.log(`[call-agent:item] Intent result:`, intent);
       session.item = intent.item || session.item;
 
       if (!session.item) {
+        console.log(`[call-agent:item] No item detected, asking again`);
         const nextUrl = buildNextUrl(baseUrl, 'item', session);
         return reply(promptAndRecord(
           'Maafi chahta hoon, samajh nahi aaya. Sirf item bolain: Pizza, Burger, Sandwich ya Biryani.',
@@ -183,6 +273,7 @@ export default async function handler(req, res) {
         ));
       }
 
+      console.log(`[call-agent:item] Item detected: ${session.item}, moving to size stage`);
       const nextUrl = buildNextUrl(baseUrl, 'size', session);
       return reply(promptAndRecord(
         `${session.item} — bilkul theek hai. Ab size bolain: Large, Medium ya Small.`,
