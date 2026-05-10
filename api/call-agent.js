@@ -1,353 +1,307 @@
-// Twilio Voice webhook for natural Urdu/English voice agent with Groq API, Whisper v3 & Llama 70B
-// Requires environment variables:
-// GROQ_API_KEY, GROQ_MODEL (default: llama-70b-8192), BASE_URL
+// Twilio Voice webhook — Urdu ordering agent
+// Voices: Polly.Raza (male, ur-PK)
+// Session: passed via URL query params (serverless-safe, no global/Redis needed)
+// Requires env vars: GROQ_API_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, BASE_URL
 
-export default async function handler(req, res) {
-  // Health check
-  if (req.method !== 'POST') {
-    return res.status(200).json({ status: 'ok', service: 'call-agent' });
-  }
-
-  const params = await getRequestParams(req);
-  const url = new URL(req.url, `https://${req.headers.host}`);
-  const stage = url.searchParams.get('stage') || 'welcome';
-  const callSid = params.CallSid || 'unknown';
-  const baseUrl = process.env.BASE_URL || `https://${req.headers.host}`;
-
-  // Session storage (in production, use Redis/DB)
-  const sessionKey = `session_${callSid}`;
-  let sessionData = global[sessionKey] || {
-    callSid,
-    item: '',
-    size: '',
-    flavor: '',
-    name: '',
-    phone: '',
-    address: '',
-    paymentMethod: '',
-    conversationHistory: [],
-  };
-
-  // Helper: XML response
-  const xml = (body) => {
-    res.setHeader('Content-Type', 'application/xml');
-    return res.status(200).send(body);
-  };
-
-  const promptAndRecord = (message, nextStage) => {
-    const nextUrl = `${baseUrl}/api/call-agent?stage=${nextStage}`;
-    return `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say language="ur-PK" voice="Polly.Raza">${escapeXml(message)}</Say>
-  <Record action="${nextUrl}" method="POST" maxLength="12" timeout="6" playBeep="true" trim="trim-silence" />
-</Response>`;
-  };
-
-  const extractUserSpeech = async (requestParams) => {
-    const directSpeech = (requestParams.SpeechResult || '').trim();
-    if (directSpeech) return directSpeech;
-
-    const recordingUrl = requestParams.RecordingUrl;
-    if (!recordingUrl) return '';
-
-    try {
-      const accountSid = process.env.TWILIO_ACCOUNT_SID;
-      const authToken = process.env.TWILIO_AUTH_TOKEN;
-      const groqKey = process.env.GROQ_API_KEY;
-
-      if (!accountSid || !authToken || !groqKey) {
-        console.warn('[Speech] Missing credentials for recording transcription');
-        return '';
-      }
-
-      const authHeader = `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`;
-      let audioResp = await fetch(`${recordingUrl}.mp3`, {
-        headers: { Authorization: authHeader },
-      });
-
-      if (!audioResp.ok) {
-        audioResp = await fetch(`${recordingUrl}.wav`, {
-          headers: { Authorization: authHeader },
-        });
-      }
-
-      if (!audioResp.ok) {
-        console.error('[Speech] Unable to fetch recording', audioResp.status);
-        return '';
-      }
-
-      const audioBuffer = Buffer.from(await audioResp.arrayBuffer());
-      const formData = new FormData();
-      formData.append('file', new Blob([audioBuffer]), 'recording.mp3');
-      formData.append('model', process.env.GROQ_WHISPER_MODEL || 'whisper-large-v3');
-
-      const transcribeResp = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${groqKey}`,
-        },
-        body: formData,
-      });
-
-      if (!transcribeResp.ok) {
-        const errText = await transcribeResp.text();
-        console.error('[Speech] Groq transcription failed', transcribeResp.status, errText);
-        return '';
-      }
-
-      const data = await transcribeResp.json();
-      return (data?.text || '').trim();
-    } catch (error) {
-      console.error('[Speech] Transcription error', error.message);
-      return '';
-    }
-  };
-
-  const speech = await extractUserSpeech(params);
-  console.log(`[call-agent] stage=${stage} callSid=${callSid} transcribed="${speech}"`);
-
-  // Call Groq API with Llama 70B for natural conversation
-  const callGroq = async (userMessage, systemPrompt) => {
-    const key = process.env.GROQ_API_KEY;
-    const apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
-    const model = process.env.GROQ_MODEL || 'llama-70b-8192'; // Use Llama 70B
-    
-    if (!key) {
-      console.warn('[Groq] No API key set, using fallback');
-      return null;
-    }
-
-    try {
-      sessionData.conversationHistory.push({ role: 'user', content: userMessage });
-
-      const resp = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${key}`,
-        },
-        body: JSON.stringify({
-          model,
-          temperature: 0.3,
-          max_tokens: 150,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            ...sessionData.conversationHistory.slice(-6), // Keep last 6 messages
-            { role: 'user', content: userMessage },
-          ],
-        }),
-      });
-
-      if (!resp.ok) {
-        const errText = await resp.text();
-        console.error('[Groq] HTTP error', resp.status, errText);
-        return null;
-      }
-
-      const data = await resp.json();
-      const assistantMessage = data?.choices?.[0]?.message?.content || '';
-      sessionData.conversationHistory.push({ role: 'assistant', content: assistantMessage });
-      
-      return assistantMessage || null;
-    } catch (e) {
-      console.error('[Groq] Error:', e.message);
-      return null;
-    }
-  };
-
-  // Extract intent using Llama 70B
-  const extractIntent = async (text) => {
-    const systemPrompt = `You are an expert at understanding restaurant orders in Urdu and English. Extract:
-1. ITEM: pizza, burger, sandwich, biryani, or none
-2. SIZE: large, medium, small, or none
-3. PAYMENT: online, cod, or none
-4. Return JSON only like: {"item": "pizza", "size": "large", "payment": "online"}`;
-
-    const response = await callGroq(
-      `Extract order details from: "${text}"`,
-      systemPrompt
-    );
-
-    try {
-      const jsonMatch = response?.match(/\{.*\}/s);
-      return jsonMatch ? JSON.parse(jsonMatch[0]) : {};
-    } catch {
-      return {};
-    }
-  };
-
-  // Save order to database
-  const saveOrder = async (order) => {
-    try {
-      const response = await fetch(`${baseUrl}/api/save-order`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(order),
-      });
-      console.log('[saveOrder] Response:', response.status);
-      return await response.json();
-    } catch (e) {
-      console.error('[saveOrder] Error:', e.message);
-    }
-  };
-
-  // STAGE 1: Welcome
-  if (stage === 'welcome') {
-    const twiml = promptAndRecord(
-      'Assalam o alaikum. Sirf item bolain: pizza, burger, sandwich ya biryani.',
-      'process'
-    );
-    global[sessionKey] = sessionData;
-    return xml(twiml);
-  }
-
-  // STAGE 2: Process item order
-  if (stage === 'process') {
-    const intent = await extractIntent(speech);
-    sessionData.item = intent.item || sessionData.item;
-
-    if (!sessionData.item) {
-      const twiml = promptAndRecord(
-        'Samajh nahi aaya. Dobara sirf item bolain: pizza, burger, sandwich ya biryani.',
-        'process'
-      );
-      global[sessionKey] = sessionData;
-      return xml(twiml);
-    }
-
-    const twiml = promptAndRecord(
-      `${sessionData.item} theek hai. Ab size bolain: large, medium ya small.`,
-      'size'
-    );
-    global[sessionKey] = sessionData;
-    return xml(twiml);
-  }
-
-  // STAGE 3: Ask for size and flavor
-  if (stage === 'size') {
-    const intent = await extractIntent(speech);
-    sessionData.size = intent.size || 'Medium';
-
-    const twiml = promptAndRecord(
-      `${sessionData.size} size theek hai. Ab flavor bolain: spicy ya cheese.`,
-      'flavor'
-    );
-    global[sessionKey] = sessionData;
-    return xml(twiml);
-  }
-
-  // STAGE 4: Flavor selected, confirm and ask for details
-  if (stage === 'flavor') {
-    sessionData.flavor = speech;
-
-    const confirmMsg = `Theek hai. Aapka order hai: ${sessionData.item}, ${sessionData.size}, ${sessionData.flavor}. Ab naam bolain.`;
-
-    const twiml = promptAndRecord(confirmMsg, 'name');
-    global[sessionKey] = sessionData;
-    return xml(twiml);
-  }
-
-  // STAGE 5: Get customer name
-  if (stage === 'name') {
-    sessionData.name = speech.trim();
-
-    const twiml = promptAndRecord(
-      `${sessionData.name}. Ab phone number bolain.`,
-      'phone'
-    );
-    global[sessionKey] = sessionData;
-    return xml(twiml);
-  }
-
-  // STAGE 6: Get phone number
-  if (stage === 'phone') {
-    sessionData.phone = speech.replace(/\D/g, '').slice(-10); // Extract digits
-
-    const twiml = promptAndRecord(
-      'Shukriya. Ab address bolain.',
-      'address'
-    );
-    global[sessionKey] = sessionData;
-    return xml(twiml);
-  }
-
-  // STAGE 7: Get address
-  if (stage === 'address') {
-    sessionData.address = speech.trim();
-
-    const twiml = promptAndRecord(
-      'Ab payment bolain: online ya cash on delivery.',
-      'payment'
-    );
-    global[sessionKey] = sessionData;
-    return xml(twiml);
-  }
-
-  // STAGE 8: Get payment method and save order
-  if (stage === 'payment') {
-    const t = speech.toLowerCase();
-    sessionData.paymentMethod = t.includes('online') ? 'Online' : 'Cash on Delivery';
-
-    // Prepare order for saving
-    const finalOrder = {
-      callSid: sessionData.callSid,
-      customer: {
-        name: sessionData.name,
-        phone: sessionData.phone,
-        address: sessionData.address,
-      },
-      orderItems: [{
-        item: sessionData.item,
-        size: sessionData.size,
-        flavor: sessionData.flavor,
-      }],
-      paymentMethod: sessionData.paymentMethod,
-      source: 'voice-call',
-      timestamp: new Date().toISOString(),
-    };
-
-    await saveOrder(finalOrder);
-    console.log('[Order Saved]', finalOrder);
-
-    const thankYouMsg = `Shukriya ${sessionData.name}! Aapka order confirm ho gaya. ${sessionData.paymentMethod} se payment hogi. Aapka khana 30 minute mein deliver ho jayega. Sage and Salt ko select karne ke liye shukriya!`;
-
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say language="ur-PK" voice="Polly.Raza">${thankYouMsg}</Say>
-  <Hangup/>
-</Response>`;
-
-    // Clean up session
-    delete global[sessionKey];
-    return xml(twiml);
-  }
-
-  // Fallback
-  const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say language="ur-PK" voice="Polly.Raza">Kuch masla aya. Barah-e-karam baad mein call karain.</Say>
-  <Hangup/>
-</Response>`;
-  return xml(twiml);
+// ── XML helper (was missing — caused ReferenceError → HTTP 500) ───────────────
+function escapeXml(str) {
+  return String(str || '')
+    .replace(/&/g,  '&amp;')
+    .replace(/</g,  '&lt;')
+    .replace(/>/g,  '&gt;')
+    .replace(/"/g,  '&quot;')
+    .replace(/'/g,  '&apos;');
 }
 
-// Helper to parse request body
+// ── Build a Say+Record TwiML block ────────────────────────────────────────────
+function promptAndRecord(message, actionUrl) {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say language="ur-PK" voice="Polly.Raza">${escapeXml(message)}</Say>
+  <Record action="${actionUrl}" method="POST" maxLength="15" timeout="6" playBeep="true" trim="trim-silence" />
+</Response>`;
+}
+
+// ── Build next-stage URL — carries ALL session state in query params ──────────
+// This replaces global[] which doesn't persist across Vercel serverless calls
+function buildNextUrl(baseUrl, stage, session) {
+  const p = new URLSearchParams({
+    stage,
+    item:    session.item    || '',
+    size:    session.size    || '',
+    flavor:  session.flavor  || '',
+    name:    session.name    || '',
+    phone:   session.phone   || '',
+    address: session.address || '',
+    payment: session.payment || '',
+  });
+  return `${baseUrl}/api/call-agent?${p.toString()}`;
+}
+
+// ── Parse request body (URL-encoded from Twilio) ──────────────────────────────
 async function getRequestParams(req) {
-  if (typeof req.body === 'object') return req.body;
-  
+  if (req.body && typeof req.body === 'object') return req.body;
   let rawBody = '';
   if (typeof req.body === 'string') {
     rawBody = req.body;
   } else {
-    for await (const chunk of req) {
-      rawBody += chunk;
-    }
+    for await (const chunk of req) rawBody += chunk;
+  }
+  const params = {};
+  for (const [k, v] of new URLSearchParams(rawBody).entries()) params[k] = v;
+  return params;
+}
+
+// ── Transcribe recording with Groq Whisper ────────────────────────────────────
+async function transcribeRecording(recordingUrl) {
+  if (!recordingUrl) return '';
+  try {
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken  = process.env.TWILIO_AUTH_TOKEN;
+    const groqKey    = process.env.GROQ_API_KEY;
+    if (!accountSid || !authToken || !groqKey) return '';
+
+    const auth = `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`;
+    let audioResp = await fetch(`${recordingUrl}.mp3`, { headers: { Authorization: auth } });
+    if (!audioResp.ok) audioResp = await fetch(`${recordingUrl}.wav`, { headers: { Authorization: auth } });
+    if (!audioResp.ok) { console.error('[Whisper] Cannot fetch recording:', audioResp.status); return ''; }
+
+    const audioBuffer = Buffer.from(await audioResp.arrayBuffer());
+    const form = new FormData();
+    form.append('file',  new Blob([audioBuffer]), 'recording.mp3');
+    form.append('model', 'whisper-large-v3');
+
+    const resp = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${groqKey}` },
+      body: form,
+    });
+    if (!resp.ok) { console.error('[Whisper] Error:', await resp.text()); return ''; }
+    return ((await resp.json())?.text || '').trim();
+  } catch (e) {
+    console.error('[Whisper] Exception:', e.message);
+    return '';
+  }
+}
+
+// ── Extract order intent via Groq Llama ──────────────────────────────────────
+async function extractIntent(speech) {
+  const groqKey = process.env.GROQ_API_KEY;
+  if (!groqKey || !speech) return {};
+  try {
+    const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqKey}` },
+      body: JSON.stringify({
+        model: 'llama3-70b-8192',   // fixed: was llama-70b-8192 (wrong name)
+        temperature: 0.2,
+        max_tokens: 80,
+        messages: [
+          {
+            role: 'system',
+            content: `You extract restaurant order details from Urdu/English speech.
+Return ONLY valid JSON like: {"item":"burger","size":"large","payment":"cash"}
+Allowed items: pizza, burger, sandwich, biryani
+Allowed sizes: large, medium, small
+Allowed payment: online, cash
+Use null for fields not mentioned.`,
+          },
+          { role: 'user', content: `Speech: "${speech}"` },
+        ],
+      }),
+    });
+    if (!resp.ok) return {};
+    const text = (await resp.json())?.choices?.[0]?.message?.content || '';
+    const match = text.match(/\{[\s\S]*\}/);
+    return match ? JSON.parse(match[0]) : {};
+  } catch (e) {
+    console.error('[Groq] Error:', e.message);
+    return {};
+  }
+}
+
+// ── Main handler ──────────────────────────────────────────────────────────────
+export default async function handler(req, res) {
+  // Health check
+  if (req.method !== 'POST') {
+    return res.status(200).json({ status: 'ok', service: 'call-agent', voice: 'Polly.Raza (ur-PK)' });
   }
 
-  const params = {};
-  const searchParams = new URLSearchParams(rawBody);
-  for (const [key, value] of searchParams.entries()) {
-    params[key] = value;
+  const reply = (twiml) => {
+    res.setHeader('Content-Type', 'application/xml');
+    return res.status(200).send(twiml);
+  };
+
+  try {
+    const body    = await getRequestParams(req);
+    const url     = new URL(req.url, `https://${req.headers.host}`);
+    const q       = url.searchParams;
+    const stage   = q.get('stage') || 'welcome';
+    const baseUrl = process.env.BASE_URL || `https://${req.headers.host}`;
+
+    // ── Read session from URL params (serverless-safe) ──────────────────────
+    const session = {
+      item:    q.get('item')    || '',
+      size:    q.get('size')    || '',
+      flavor:  q.get('flavor')  || '',
+      name:    q.get('name')    || '',
+      phone:   q.get('phone')   || '',
+      address: q.get('address') || '',
+      payment: q.get('payment') || '',
+    };
+
+    // ── Transcribe user recording ────────────────────────────────────────────
+    const speech = (body.SpeechResult || '').trim() || await transcribeRecording(body.RecordingUrl);
+    console.log(`[call-agent] stage=${stage} speech="${speech}"`);
+
+    // ════════════════════════════════════════════════════════════════════════
+    // STAGE: welcome — greet and ask for item
+    // ════════════════════════════════════════════════════════════════════════
+    if (stage === 'welcome') {
+      const nextUrl = buildNextUrl(baseUrl, 'item', session);
+      return reply(promptAndRecord(
+        'Assalam o alaikum! Sage aur Salt mein khush aamdeed. Aap kya order karna chahenge? Pizza, Burger, Sandwich ya Biryani bolain.',
+        nextUrl
+      ));
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // STAGE: item — detect what food item
+    // ════════════════════════════════════════════════════════════════════════
+    if (stage === 'item') {
+      const intent = await extractIntent(speech);
+      session.item = intent.item || session.item;
+
+      if (!session.item) {
+        const nextUrl = buildNextUrl(baseUrl, 'item', session);
+        return reply(promptAndRecord(
+          'Maafi chahta hoon, samajh nahi aaya. Sirf item bolain: Pizza, Burger, Sandwich ya Biryani.',
+          nextUrl
+        ));
+      }
+
+      const nextUrl = buildNextUrl(baseUrl, 'size', session);
+      return reply(promptAndRecord(
+        `${session.item} — bilkul theek hai. Ab size bolain: Large, Medium ya Small.`,
+        nextUrl
+      ));
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // STAGE: size — detect size
+    // ════════════════════════════════════════════════════════════════════════
+    if (stage === 'size') {
+      const intent = await extractIntent(speech);
+      session.size = intent.size || 'medium';
+
+      const nextUrl = buildNextUrl(baseUrl, 'name', session);
+      return reply(promptAndRecord(
+        `${session.size} size — theek hai. Ab apna naam bolain.`,
+        nextUrl
+      ));
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // STAGE: name — customer name
+    // ════════════════════════════════════════════════════════════════════════
+    if (stage === 'name') {
+      session.name = speech.trim() || 'Customer';
+      const nextUrl = buildNextUrl(baseUrl, 'phone', session);
+      return reply(promptAndRecord(
+        `${session.name} — shukriya. Ab apna phone number bolain.`,
+        nextUrl
+      ));
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // STAGE: phone — phone number
+    // ════════════════════════════════════════════════════════════════════════
+    if (stage === 'phone') {
+      session.phone = speech.replace(/\D/g, '').slice(-11) || speech.trim();
+      const nextUrl = buildNextUrl(baseUrl, 'address', session);
+      return reply(promptAndRecord(
+        'Shukriya. Ab apna delivery address bolain.',
+        nextUrl
+      ));
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // STAGE: address — delivery address
+    // ════════════════════════════════════════════════════════════════════════
+    if (stage === 'address') {
+      session.address = speech.trim() || 'Not provided';
+      const nextUrl = buildNextUrl(baseUrl, 'payment', session);
+      return reply(promptAndRecord(
+        'Theek hai. Payment ka tareeqa bolain: Online ya Cash on Delivery.',
+        nextUrl
+      ));
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // STAGE: payment — finalize and save order
+    // ════════════════════════════════════════════════════════════════════════
+    if (stage === 'payment') {
+      const t = speech.toLowerCase();
+      session.payment = t.includes('online') ? 'Online' : 'Cash on Delivery';
+
+      // Save to Firestore via save-order API
+      try {
+        await fetch(`${baseUrl}/api/save-order`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customerName:  session.name,
+            phone:         session.phone,
+            address:       session.address,
+            city:          '',
+            note:          '',
+            paymentMethod: session.payment,
+            items: [{
+              name:     session.item,
+              qty:      1,
+              price:    0,
+              subtotal: 0,
+              size:     session.size,
+            }],
+            subtotal:    0,
+            tax:         0,
+            deliveryFee: 150,
+            total:       0,
+            tableNo:     'Walk-in',
+            source:      'call',
+            status:      'new',
+          }),
+        });
+        console.log('[call-agent] Order saved for', session.name);
+      } catch (e) {
+        console.error('[call-agent] Save order failed:', e.message);
+      }
+
+      const thanks = `Shukriya ${session.name}! Aapka order confirm ho gaya. ${session.item} ${session.size} size. ${session.payment} se payment hogi. Aapka khana 30 minute mein deliver ho jayega. Sage aur Salt ko choose karne ka shukriya. Khuda hafiz!`;
+
+      return reply(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say language="ur-PK" voice="Polly.Raza">${escapeXml(thanks)}</Say>
+  <Hangup/>
+</Response>`);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // FALLBACK
+    // ════════════════════════════════════════════════════════════════════════
+    return reply(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say language="ur-PK" voice="Polly.Raza">Kuch masla aagaya. Baad mein call karain. Shukriya.</Say>
+  <Hangup/>
+</Response>`);
+
+  } catch (err) {
+    console.error('[call-agent] Unhandled error:', err);
+    res.setHeader('Content-Type', 'application/xml');
+    return res.status(200).send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say language="ur-PK" voice="Polly.Raza">Kuch masla aagaya. Baad mein call karain. Shukriya.</Say>
+  <Hangup/>
+</Response>`);
   }
-  return params;
 }
