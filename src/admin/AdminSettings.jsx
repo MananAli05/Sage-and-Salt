@@ -209,12 +209,6 @@ export default function AdminSettings() {
           ))}
         </div>
       </SettingSection>
-
-      {/* Admin Credentials reminder */}
-      <div style={{ background: '#fff7ed', border: '1.5px solid #fed7aa', borderRadius: '10px', padding: '0.85rem 1.1rem', fontSize: '0.82rem', color: '#92400e', display: 'flex', gap: '0.6rem', alignItems: 'flex-start' }}>
-        <Settings size={15} style={{ flexShrink: 0, marginTop: '0.1rem' }} />
-        <div><strong>Admin Login:</strong> Username: <code>admin</code> · Password: <code>admin123</code> — Change these in <code>AdminLogin.jsx</code> before going live.</div>
-      </div>
     </div>
   );
 }
