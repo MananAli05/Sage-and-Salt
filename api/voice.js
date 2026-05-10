@@ -23,7 +23,7 @@ export default async function handler(req, res) {
     console.error('[Voice] Error:', err);
     const errorTwiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say language="ur-PK" voice="alice">Kuch masla aya. Barah-e-karam baad mein call karain.</Say>
+  <Say language="ur-PK" voice="Polly.Raza">Kuch masla aya. Barah-e-karam baad mein call karain.</Say>
   <Hangup/>
 </Response>`;
     res.setHeader('Content-Type', 'application/xml');

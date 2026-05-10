@@ -38,7 +38,7 @@ export default async function handler(req, res) {
     const nextUrl = `${baseUrl}/api/call-agent?stage=${nextStage}`;
     return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say language="hi-IN" voice="Polly.Aditi">${escapeXml(message)}</Say>
+  <Say language="ur-PK" voice="Polly.Raza">${escapeXml(message)}</Say>
   <Record action="${nextUrl}" method="POST" maxLength="12" timeout="6" playBeep="true" trim="trim-silence" />
 </Response>`;
   };
@@ -313,7 +313,7 @@ export default async function handler(req, res) {
 
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say language="ur-PK" voice="alice">${thankYouMsg}</Say>
+  <Say language="ur-PK" voice="Polly.Raza">${thankYouMsg}</Say>
   <Hangup/>
 </Response>`;
 
@@ -325,7 +325,7 @@ export default async function handler(req, res) {
   // Fallback
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say language="ur-PK" voice="alice">Kuch masla aya. Barah-e-karam baad mein call karain.</Say>
+  <Say language="ur-PK" voice="Polly.Raza">Kuch masla aya. Barah-e-karam baad mein call karain.</Say>
   <Hangup/>
 </Response>`;
   return xml(twiml);

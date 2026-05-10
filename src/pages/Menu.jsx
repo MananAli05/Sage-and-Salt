@@ -34,11 +34,11 @@ const BellIcon = () => (
 
 // ─── Waiter Request Modal ─────────────────────────────────────────────────────
 const WAITER_OPTIONS = [
-  { id: 'water',   label: 'Water Bottle',     },
-  { id: 'tissue',  label: 'Tissues / Napkins',  },
-  { id: 'cutlery', label: 'Extra Cutlery',    },
-  { id: 'sauce',   label: 'Extra Sauce',      },
-  { id: 'bill',    label: 'Request Bill',     },
+  { id: 'water',   label: 'Water Bottle',      icon: '💧' },
+  { id: 'tissue',  label: 'Tissues / Napkins', icon: '🧻' },
+  { id: 'cutlery', label: 'Extra Cutlery',     icon: '🍴' },
+  { id: 'sauce',   label: 'Extra Sauce',       icon: '🫙' },
+  { id: 'bill',    label: 'Request Bill',      icon: '🧾' },
 ];
 
 function WaiterModal({ tableNo, onClose }) {
@@ -228,6 +228,9 @@ function OrderModal({ cart, onClose, onOrderPlaced }) {
   const tax = Math.round(subtotal * TAX_RATE);
   const total = subtotal + DELIVERY_FEE + tax;
 
+  // Check if customer is dining in (came via QR with table number)
+  const isDineIn = !!(new URLSearchParams(window.location.search).get('table'));
+
   const [form, setForm] = useState({ name:'', phone:'', address:'', city:'', note:'' });
   const [payment, setPayment] = useState('cash');
   const [loading, setLoading] = useState(false);
@@ -237,8 +240,8 @@ function OrderModal({ cart, onClose, onOrderPlaced }) {
     const e = {};
     if (!form.name.trim()) e.name = 'Name Is Required';
     if (!/^03\d{9}$/.test(form.phone)) e.phone = 'Enter Valid Pakistani Number (03XXXXXXXXX)';
-    if (!form.address.trim()) e.address = 'Address Is Required';
-    if (!form.city.trim()) e.city = 'City Is Required';
+    if (!isDineIn && !form.address.trim()) e.address = 'Address Is Required';
+    if (!isDineIn && !form.city.trim()) e.city = 'City Is Required';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -338,22 +341,32 @@ function OrderModal({ cart, onClose, onOrderPlaced }) {
             </div>
           </div>
 
-          <div className="form-group">
-            <label className="form-label" htmlFor="inp-address">Delivery Address</label>
-            <input id="inp-address" className="form-input" placeholder="House #, Street, Area" value={form.address} onChange={set('address')} />
-            {errors.address && <span style={{color:'#e84545', fontSize:'0.78rem'}}>{errors.address}</span>}
-          </div>
+          {/* Delivery fields — hidden for dine-in customers */}
+          {!isDineIn && (
+            <>
+              <div className="form-group">
+                <label className="form-label" htmlFor="inp-address">Delivery Address</label>
+                <input id="inp-address" className="form-input" placeholder="House #, Street, Area" value={form.address} onChange={set('address')} />
+                {errors.address && <span style={{color:'#e84545', fontSize:'0.78rem'}}>{errors.address}</span>}
+              </div>
 
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label" htmlFor="inp-city">City</label>
-              <input id="inp-city" className="form-input" placeholder="Lahore" value={form.city} onChange={set('city')} />
-              {errors.city && <span style={{color:'#e84545', fontSize:'0.78rem'}}>{errors.city}</span>}
+              <div className="form-group">
+                <label className="form-label" htmlFor="inp-city">City</label>
+                <input id="inp-city" className="form-input" placeholder="Lahore" value={form.city} onChange={set('city')} />
+                {errors.city && <span style={{color:'#e84545', fontSize:'0.78rem'}}>{errors.city}</span>}
+              </div>
+            </>
+          )}
+
+          {isDineIn && (
+            <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'8px', padding:'0.6rem 0.85rem', fontSize:'0.82rem', color:'#1e40af', marginBottom:'0.5rem' }}>
+              🪑 Dine-in order for <strong>Table {new URLSearchParams(window.location.search).get('table')}</strong> — no delivery needed.
             </div>
-            <div className="form-group">
-              <label className="form-label" htmlFor="inp-note">Special Note</label>
-              <input id="inp-note" className="form-input" placeholder="Extra spicy, no onions…" value={form.note} onChange={set('note')} />
-            </div>
+          )}
+
+          <div className="form-group">
+            <label className="form-label" htmlFor="inp-note">Special Note</label>
+            <input id="inp-note" className="form-input" placeholder="Extra spicy, no onions…" value={form.note} onChange={set('note')} />
           </div>
 
           {/* Payment */}
