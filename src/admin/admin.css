@@ -414,11 +414,11 @@
 }
 
 .admin-login-card .form-input {
-  color: #ffffff;
-  -webkit-text-fill-color: #ffffff;
+  color: var(--text-primary);
+  -webkit-text-fill-color: var(--text-primary);
 }
 
 .admin-login-card .form-input::placeholder {
-  color: rgba(255,255,255,0.62);
-  -webkit-text-fill-color: rgba(255,255,255,0.62);
+  color: var(--text-muted);
+  -webkit-text-fill-color: var(--text-muted);
 }
