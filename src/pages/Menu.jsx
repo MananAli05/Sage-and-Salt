@@ -371,7 +371,7 @@ function OrderModal({ cart, onClose, onOrderPlaced }) {
           <div className="form-row">
             <div className="form-group">
               <label className="form-label" htmlFor="inp-name">Full Name</label>
-              <input id="inp-name" className="form-input" placeholder="Abdul Manan" value={form.name} onChange={set('name')} />
+              <input id="inp-name" className="form-input" placeholder="Junaid" value={form.name} onChange={set('name')} />
               {errors.name && <span style={{color:'#e84545', fontSize:'0.78rem'}}>{errors.name}</span>}
             </div>
             <div className="form-group">
