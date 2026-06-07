@@ -340,12 +340,17 @@ export default async function handler(req, res) {
       const t = speech.toLowerCase();
       session.payment = t.includes('online') ? 'Online' : 'Cash on Delivery';
 
-      // Save to Firestore via save-order API
+      // Generate orderId so admin UI gets a consistent identifier immediately
+      const genOrderId = () => 'SS-' + Math.random().toString(36).slice(2,8).toUpperCase();
+      const orderId = genOrderId();
+
+      // Save to Firestore via save-order API (includes `orderId` and `source: 'call'`)
       try {
-        await fetch(`${baseUrl}/api/save-order`, {
+        const resp = await fetch(`${baseUrl}/api/save-order`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            orderId,
             customerName:  session.name,
             phone:         session.phone,
             address:       session.address,
@@ -368,13 +373,15 @@ export default async function handler(req, res) {
             status:      'new',
           }),
         });
-        console.log('[call-agent] Order saved for', session.name);
+        if (!resp.ok) console.warn('[call-agent] save-order responded with', resp.status);
+        else console.log('[call-agent] Order saved for', session.name, 'orderId=', orderId);
       } catch (e) {
         console.error('[call-agent] Save order failed:', e.message);
       }
 
       const thanks = `Shukriya ${session.name}! Aapka order confirm ho gaya. ${session.item} ${session.size} size. ${session.payment} se payment hogi. Aapka khana 30 minute mein deliver ho jayega. Sage aur Salt ko choose karne ka shukriya. Khuda hafiz!`;
 
+      console.log('[call-agent] Responding with orderId:', orderId);
       return reply(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say language="en-GB" voice="Polly.Joanna">${escapeXml(thanks)}</Say>

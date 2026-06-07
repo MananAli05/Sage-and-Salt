@@ -55,7 +55,13 @@ npm run build
 ## Git Update Commands
 
 ```bash
+# Commit only source changes. Never commit .env files or live credentials.
 git add api/whatsapp.js README.md
 git commit -m "feat: improve Twilio WhatsApp webhook and sandbox setup guide"
 git push origin main
 ```
+
+## Environment Variables
+
+If you change Twilio credentials locally, update the same values in Vercel Dashboard
+under Project Settings -> Environment Variables for production deployments.

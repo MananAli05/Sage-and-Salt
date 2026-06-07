@@ -88,9 +88,9 @@ const StatusBadge = ({ raw }) => {
 };
 const SourceBadge = ({ src }) => {
   const s = (src||'qr').toLowerCase();
-  const cls = { qr:'a-badge-qr', whatsapp:'a-badge-whatsapp', call:'a-badge-call' };
-  const lbl = { qr:'QR Scan', whatsapp:'WhatsApp', call:'Call' };
-  return <span className={`a-badge ${cls[s]||'a-badge-qr'}`}>{lbl[s]||'QR'}</span>;
+  const cls = { qr:'a-badge-qr', whatsapp:'a-badge-whatsapp', call:'a-badge-call', direct:'a-badge-direct' };
+  const lbl = { qr:'QR Scan', whatsapp:'WhatsApp', call:'Call', direct:'Direct' };
+  return <span className={`a-badge ${cls[s]||'a-badge-qr'}`}>{lbl[s]||src||'QR'}</span>;
 };
 
 export default function AdminDashboard() {

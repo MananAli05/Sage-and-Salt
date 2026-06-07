@@ -2,7 +2,7 @@
 // Requires FIREBASE_CONFIG env variable with connection details
 
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
 
 let db = null;
 
@@ -53,14 +53,20 @@ export default async function handler(req, res) {
     const database = initFirebase();
 
     if (database) {
-      // Save to Firestore
+      // Save to Firestore using server timestamp for ordering
       const orderRef = await addDoc(collection(database, 'orders'), {
         ...order,
-        serverTimestamp: serverTimestamp(),
-        status: 'pending',
-        createdAt: new Date().toISOString(),
+        status: order.status || 'pending',
+        createdAt: serverTimestamp(),
       });
       console.log('[Firestore] Order saved with ID:', orderRef.id);
+
+      // Ensure the document contains an `orderId` field (admin UI expects this)
+      try {
+        await updateDoc(doc(database, 'orders', orderRef.id), { orderId: order.orderId || orderRef.id });
+      } catch (e) {
+        console.warn('[Firestore] Failed to set orderId field on document:', e.message);
+      }
 
       return res.status(200).json({
         status: 'saved',

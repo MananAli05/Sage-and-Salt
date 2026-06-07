@@ -262,8 +262,14 @@ function OrderModal({ cart, onClose, onOrderPlaced }) {
   const tax = Math.round(subtotal * TAX_RATE);
   const total = subtotal + DELIVERY_FEE + tax;
 
+  // Determine order source from URL param: ?ref=whatsapp → 'whatsapp', ?table=X → 'qr', else 'direct'
+  const _params = new URLSearchParams(window.location.search);
+  const _ref = _params.get('ref');
+  const _table = _params.get('table');
+  const orderSource = _ref === 'whatsapp' ? 'whatsapp' : _table ? 'qr' : 'direct';
+
   // Check if customer is dining in (came via QR with table number)
-  const isDineIn = !!(new URLSearchParams(window.location.search).get('table'));
+  const isDineIn = !!_table;
 
   const [form, setForm] = useState({ name:'', phone:'', address:'', city:'', note:'' });
   const [payment, setPayment] = useState('cash');
@@ -315,7 +321,7 @@ function OrderModal({ cart, onClose, onOrderPlaced }) {
         deliveryFee: DELIVERY_FEE,
         total,
         tableNo,
-        source:    'qr',        // qr | whatsapp | call
+        source:    orderSource, // 'qr' | 'whatsapp' | 'direct' | 'call'
         status:    'new',       // new → preparing → ready → delivered
         createdAt: serverTimestamp(),
       });

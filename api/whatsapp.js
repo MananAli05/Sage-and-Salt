@@ -25,7 +25,7 @@ const WELCOME_MSG =
   `2️⃣ Type *"special"* to see today's specials\n` +
   `3️⃣ Type *"spicy"* to see spicy items\n` +
   `📍 *Place Your Order Here:*\n` +
-  `https://sage-and-salt.vercel.app/\n\n` +
+  `https://sage-and-salt.vercel.app/?ref=whatsapp\n\n` +
   `We Are Excited To Serve You ❤️`;
 
 const MENU_MSG = () => {
@@ -33,7 +33,7 @@ const MENU_MSG = () => {
   MENU_ITEMS.forEach(item => {
     msg += `📌 *${item.name}* - ${item.price}\n   Level: ${item.spicy}\n\n`;
   });
-  msg += `\n*Order now:* https://sage-and-salt.vercel.app/`;
+  msg += `\n*Order now:* https://sage-and-salt.vercel.app/?ref=whatsapp`;
   return msg;
 };
 
@@ -42,7 +42,7 @@ const SPECIALS_MSG = () => {
   SPECIALS.forEach(item => {
     msg += `🌟 *${item.name}* - ${item.price}\n   Level: ${item.spicy}\n\n`;
   });
-  msg += `\n*Order now:* https://sage-and-salt.vercel.app/`;
+  msg += `\n*Order now:* https://sage-and-salt.vercel.app/?ref=whatsapp`;
   return msg;
 };
 
@@ -52,14 +52,14 @@ const SPICY_ITEMS_MSG = () => {
   spicyItems.forEach(item => {
     msg += `🌟 *${item.name}* - ${item.price}\n   Level: ${item.spicy}\n\n`;
   });
-  msg += `\n*Order now:* https://sage-and-salt.vercel.app/`;
+  msg += `\n*Order now:* https://sage-and-salt.vercel.app/?ref=whatsapp`;
   return msg;
 };
 
 const FALLBACK_MSG =
   `😊 Type *"hi"* to see our menu\n` +
   `Or ask about: *"menu"*, *"special"*, *"spicy"*\n\n` +
-  `Or visit: https://sage-and-salt.vercel.app/`;
+  `Or visit: https://sage-and-salt.vercel.app/?ref=whatsapp`;
 
 function isGreetingMessage(text) {
   if (!text) return false;

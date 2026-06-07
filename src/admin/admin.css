@@ -227,6 +227,7 @@
 .a-badge-qr       { background: #f5f3ff; color: #7c3aed; border-color: #ddd6fe; }
 .a-badge-whatsapp { background: var(--a-completed-lt); color: var(--a-completed); border-color: var(--a-completed-bd); }
 .a-badge-call     { background: var(--a-pending-lt);  color: var(--a-pending);  border-color: var(--a-pending-bd); }
+.a-badge-direct   { background: #f1f5f9; color: #475569; border-color: #cbd5e1; }
 
 /* ── Right Panel ───────────────────────────────────────────────────────────── */
 .a-right-panel {

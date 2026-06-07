@@ -147,8 +147,6 @@ export default function AdminSettings() {
           <input style={inputStyle} value={settings.menuUrl} onChange={set('menuUrl')} />
         </SettingRow>
       </SettingSection>
-
-      {/* Hours */}
       <SettingSection title="Opening Hours" icon={<Clock size={16} />}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
           <SettingRow label="Opening Time">
