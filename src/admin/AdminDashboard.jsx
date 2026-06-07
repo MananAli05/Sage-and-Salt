@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, authReady } from '../firebase';
 import { Search, Phone, MapPin, CreditCard, Clock, X, ChefHat, CheckCircle, XCircle, Bell } from 'lucide-react';
 import './admin.css';
 
@@ -99,15 +99,55 @@ export default function AdminDashboard() {
   const [selected, setSelected] = useState(null);
   const [search, setSearch]     = useState('');
   const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState(null);
 
-  useEffect(() => onSnapshot(query(collection(db,'orders'), orderBy('createdAt','desc')), snap => {
-    setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    setLoading(false);
-  }), []);
+  useEffect(() => {
+    let unsubscribe = () => {};
+    authReady
+      .then(() => {
+        const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
+        unsubscribe = onSnapshot(
+          q,
+          (snap) => {
+            setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            setError(null);
+            setLoading(false);
+          },
+          (err) => {
+            console.error('Firestore orders subscription failed:', err);
+            setError(err.message || String(err));
+            setLoading(false);
+          }
+        );
+      })
+      .catch((err) => {
+        console.error('Auth failed, cannot load orders:', err);
+        setError('Authentication failed: ' + (err.message || String(err)));
+        setLoading(false);
+      });
+    return () => unsubscribe();
+  }, []);
 
-  useEffect(() => onSnapshot(query(collection(db,'waiter_calls'), orderBy('createdAt','desc')), snap => {
-    setCalls(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.status === 'pending'));
-  }), []);
+  useEffect(() => {
+    let unsubscribe = () => {};
+    authReady
+      .then(() => {
+        const q = query(collection(db, 'waiter_calls'), orderBy('createdAt', 'desc'));
+        unsubscribe = onSnapshot(
+          q,
+          (snap) => {
+            setCalls(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.status === 'pending'));
+          },
+          (err) => {
+            console.error('Firestore waiter_calls subscription failed:', err);
+          }
+        );
+      })
+      .catch((err) => {
+        console.error('Auth failed, cannot load waiter calls:', err);
+      });
+    return () => unsubscribe();
+  }, []);
 
   const dismiss = id => updateDoc(doc(db,'waiter_calls',id), { status:'done' });
   const setStatus = (orderId, st) => {
@@ -130,6 +170,17 @@ export default function AdminDashboard() {
       <div style={{ width:'36px',height:'36px',border:'3px solid #ecddd1',borderTopColor:'#e07a2c',borderRadius:'50%',animation:'spin 0.8s linear infinite' }} />
     </div>
   );
+
+  if (error) return (
+    <div style={{ padding: '2.5rem', textAlign: 'center', background: 'rgba(232, 69, 69, 0.08)', color: '#dc2626', border: '1px solid rgba(232, 69, 69, 0.15)', borderRadius: '12px', margin: '2rem 0' }}>
+      <div style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: '0.75rem', fontFamily: "'Playfair Display', serif" }}>Failed to Load Dashboard Data</div>
+      <p style={{ fontSize: '0.9rem', color: 'var(--a-text)', marginBottom: '1.25rem', lineHeight: 1.5 }}>{error}</p>
+      <div style={{ fontSize: '0.8rem', color: 'var(--a-muted)', maxWidth: '500px', margin: '0 auto', lineHeight: 1.6 }}>
+        If this is a <code>permission-denied</code> error, ensure you have enabled <strong>Anonymous Authentication</strong> in your Firebase project console and updated your Firestore security rules.
+      </div>
+    </div>
+  );
+
 
   return (
     <div style={{ display:'flex', gap:'1.5rem' }}>
