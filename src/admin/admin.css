@@ -407,3 +407,18 @@
   .qr-print-grid { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; gap: 1.5rem !important; }
   .qr-card { border: 1px solid #ccc !important; break-inside: avoid; }
 }
+
+.admin-login-card h1,
+.admin-login-card .form-label {
+  color: #ffffff !important;
+}
+
+.admin-login-card .form-input {
+  color: #ffffff;
+  -webkit-text-fill-color: #ffffff;
+}
+
+.admin-login-card .form-input::placeholder {
+  color: rgba(255,255,255,0.62);
+  -webkit-text-fill-color: rgba(255,255,255,0.62);
+}

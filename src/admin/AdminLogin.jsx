@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, User } from 'lucide-react';
 import '../index.css'; // Reusing global theme
+import './admin.css';
 
 export default function AdminLogin() {
   const [username, setUsername] = useState('');
@@ -56,7 +57,7 @@ export default function AdminLogin() {
       }}>
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
           <img src="/logo.png" alt="Logo" style={{ width: '60px', marginBottom: '1rem' }} />
-          <h1 style={{ fontSize: '1.5rem', color: 'var(--text-main)', marginBottom: '0.5rem' }}>Admin Portal</h1>
+          <h1 style={{ fontSize: '1.5rem', color: '#ffffff', marginBottom: '0.5rem' }}>Admin Portal</h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Sign in to manage Sage & Salt</p>
         </div>
 
